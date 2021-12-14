@@ -1,3 +1,5 @@
 *~
 auth_cache
 import-*
+venv
+__pycache__

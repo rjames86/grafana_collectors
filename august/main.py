@@ -1,54 +1,56 @@
 from influxdb import InfluxDBClient
-from august.api import Api
-from august.authenticator import Authenticator
 from os import environ
 
-INFLUXDB_URL = environ.get('WEATHERFLOW_COLLECTOR_INFLUXDB_URL')
-INFLUXDB_USERNAME = environ.get('WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME')
-INFLUXDB_PASSWORD = environ.get('WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD')
+from august_api import create_client, Houses
 
-AUGUST_USERNAME = environ.get('AUGUST_USERNAME')
-AUGUST_PASSWORD = environ.get('AUGUST_PASSWORD')
+INFLUXDB_URL = environ.get("WEATHERFLOW_COLLECTOR_INFLUXDB_URL")
+INFLUXDB_USERNAME = environ.get("WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME")
+INFLUXDB_PASSWORD = environ.get("WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD")
 
-api = Api(timeout=20)
-authenticator = Authenticator(api, "email", AUGUST_USERNAME, AUGUST_PASSWORD,
-                              access_token_cache_file="auth_cache")
+api = create_client()
 
-client = InfluxDBClient(host=INFLUXDB_URL, port=8086, username=INFLUXDB_USERNAME, password=INFLUXDB_PASSWORD, database="august_data")
+client = InfluxDBClient(
+    host=INFLUXDB_URL,
+    port=8086,
+    username=INFLUXDB_USERNAME,
+    password=INFLUXDB_PASSWORD,
+    database="august_data",
+)
 client.create_database("august_data")
 
-authentication = authenticator.authenticate()
 
 DUNCAN_HOUSE_ID = "3f040bfd-acd0-4b2a-b633-d4fc1539d5a4"
 CENTRAL_HOUSE_ID = "06f1006e-6aa6-41ad-bf51-e2744f4ca80d"
 
-state = authentication.state
-
-authentication = authenticator.authenticate()
-
-locks = api.get_locks(authentication.access_token)
-
 json_body = []
 
 
-def create_measurement(lock_detail):
+def create_measurement(lock_detail, houses, type="lock"):
     return dict(
         measurement="augustLockBattery",
         tags=dict(
             name=lock_detail.device_name,
-            house="Duncan" if lock_detail.house_id == DUNCAN_HOUSE_ID else "Central",
+            house=houses.get_house_name_by_id(lock_detail.house_id),
             lock_id=lock_detail.device_id,
+            type=type,
         ),
-        fields=dict(
-            battery_level=lock_detail.battery_level
-        )
+        fields=dict(battery_level=lock_detail.battery_level),
     )
 
 
-for lock in locks:
-    lock_detail = api.get_lock_detail(
-        authentication.access_token, lock.device_id)
+def get_lock_details():
+    locks = api.get_locks(api.access_token)
+    return [api.get_lock_detail(api.access_token, lock.device_id) for lock in locks]
+
+
+lock_details = get_lock_details()
+for lock_detail in lock_details:
+    houses = Houses(api.get_houses(api.access_token))
     print("Creating data for {0}".format(lock_detail.device_id))
-    json_body.append(create_measurement(lock_detail))
+    json_body.append(create_measurement(lock_detail, houses))
+
+    if lock_detail.keypad:
+        json_body.append(create_measurement(lock_detail.keypad, houses, "keypad"))
+
 
 client.write_points(json_body)

@@ -77,7 +77,6 @@ services:
     - protocol: udp
       published: 50222
       target: 50222
-    restart: always
 volumes:
   wxfdashboardsaio-grafana-data:
   wxfdashboardsaio-influxdb-data:
