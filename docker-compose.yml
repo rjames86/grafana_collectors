@@ -10,6 +10,8 @@ services:
       WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
       WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
       WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      AUGUST_USERNAME: "${AUGUST_USERNAME}"
+      AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
     volumes:
     - august_collector_data:/var/lib/august_collector
     restart: always
@@ -77,7 +79,7 @@ services:
       target: 50222
     restart: always
 volumes:
-  wxfdashboardsaio-grafana-data:   
+  wxfdashboardsaio-grafana-data:
   wxfdashboardsaio-influxdb-data:
   august_collector_data:
 version: '3.3'
