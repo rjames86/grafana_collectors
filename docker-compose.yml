@@ -1,0 +1,83 @@
+
+
+services:
+  august_collector:
+    container_name: august_collector
+    build: ./august
+    depends_on:
+      - "wxfdashboardsaio_influxdb"
+    environment:
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+    volumes:
+    - august_collector_data:/var/lib/august_collector
+    restart: always
+  wxfdashboardsaio_grafana:
+    container_name: wxfdashboardsaio_grafana
+    environment:
+      TZ: America/Denver
+    image: lux4rd0/weatherflow-dashboards-grafana:latest
+    ports:
+    - protocol: tcp
+      published: 3000
+      target: 3000
+    restart: always
+    volumes:
+    - wxfdashboardsaio-grafana-data:/var/lib/grafana
+  wxfdashboardsaio_influxdb:
+    container_name: wxfdashboardsaio_influxdb
+    environment:
+      TZ: America/Denver
+      INFLUXDB_ADMIN_PASSWORD: "${INFLUXDB_ADMIN_PASSWORD}"
+      INFLUXDB_ADMIN_USER: admin
+      INFLUXDB_DATA_ENGINE: tsm1
+      INFLUXDB_DB: weatherflow
+      INFLUXDB_HTTP_LOG_ENABLED: "false"
+      INFLUXDB_LOGGING_FORMAT: json
+      INFLUXDB_LOGGING_LEVEL: info
+      INFLUXDB_MONITOR_STORE_DATABASE: _internal
+      INFLUXDB_MONITOR_STORE_ENABLED: "true"
+      INFLUXDB_REPORTING_DISABLED: "true"
+      INFLUXDB_USER: weatherflow
+      INFLUXDB_USER_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+    image: influxdb:1.8
+    ports:
+    - protocol: tcp
+      published: 8086
+      target: 8086
+    restart: always
+    volumes:
+    - wxfdashboardsaio-influxdb-data:/var/lib/influxdb:rw
+  wxfdashboardsaio-collector:
+    container_name: wxfdashboardsaio-collector-74f3e5ca
+    environment:
+      TZ: America/Denver
+      WEATHERFLOW_COLLECTOR_DEBUG: "false"
+      WEATHERFLOW_COLLECTOR_DEBUG_CURL: "false"
+      WEATHERFLOW_COLLECTOR_DISABLE_HEALTH_CHECK: "false"
+      WEATHERFLOW_COLLECTOR_DISABLE_HOST_PERFORMANCE: "false"
+      WEATHERFLOW_COLLECTOR_DISABLE_LOCAL_UDP: "false"
+      WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_FORECAST: "false"
+      WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_REST: "false"
+      WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_SOCKET: "false"
+      WEATHERFLOW_COLLECTOR_HEALTHCHECK: "true"
+      WEATHERFLOW_COLLECTOR_HOST_HOSTNAME: kvothe
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: http://wxfdashboardsaio_influxdb:8086/write?db=weatherflow
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      WEATHERFLOW_COLLECTOR_TOKEN: "${WEATHERFLOW_COLLECTOR_TOKEN}"
+    restart: always
+    depends_on:
+      - "wxfdashboardsaio_influxdb"
+    image: lux4rd0/weatherflow-collector:latest
+    ports:
+    - protocol: udp
+      published: 50222
+      target: 50222
+    restart: always
+volumes:
+  wxfdashboardsaio-grafana-data:   
+  wxfdashboardsaio-influxdb-data:
+  august_collector_data:
+version: '3.3'
