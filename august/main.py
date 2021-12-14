@@ -46,7 +46,8 @@ def get_lock_details():
 lock_details = get_lock_details()
 for lock_detail in lock_details:
     houses = Houses(api.get_houses(api.access_token))
-    print("Creating data for {0}".format(lock_detail.device_id))
+    measurement = create_measurement(lock_detail, houses)
+    print("Creating data", measurement)
     json_body.append(create_measurement(lock_detail, houses))
 
     if lock_detail.keypad:
