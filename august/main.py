@@ -1,5 +1,6 @@
 from influxdb import InfluxDBClient
 from os import environ
+from activities import create_activities
 
 from august_api import create_client, Houses
 
@@ -44,8 +45,9 @@ def get_lock_details():
 
 
 lock_details = get_lock_details()
+houses = Houses(api.get_houses(api.access_token))
+
 for lock_detail in lock_details:
-    houses = Houses(api.get_houses(api.access_token))
     measurement = create_measurement(lock_detail, houses)
     print("Creating data", measurement)
     json_body.append(create_measurement(lock_detail, houses))
@@ -53,5 +55,8 @@ for lock_detail in lock_details:
     if lock_detail.keypad:
         json_body.append(create_measurement(lock_detail.keypad, houses, "keypad"))
 
+house_activity_measurements = create_activities(api, houses)
+
+json_body.extend(house_activity_measurements)
 
 client.write_points(json_body)
