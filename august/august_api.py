@@ -1,6 +1,7 @@
 from august.api import Api
 from august.keypad import KeypadDetail as AugustKeypadDetail
 from august.lock import LockDetail as AugustLockDetail
+from august.pin import Pin as AugustPin
 from august.authenticator import Authenticator
 from august.api_common import API_GET_HOUSES_URL
 from os import environ
@@ -18,6 +19,25 @@ class KeypadDetail(AugustKeypadDetail):
     def battery_level(self):
         return self._battery_level_raw
 
+class Pin(AugustPin):
+    def __init__(self, data):
+        self._pin_id = data["_id"]
+        self._lock_id = data["lockID"]
+        self._user_id = data["userID"]
+        self._state = data["state"]
+        self._pin = data["pin"]
+        self._slot = data["slot"]
+        self._access_type = data["accessType"]
+        self._first_name = data["firstName"]
+        self._last_name = data["lastName"]
+        self._unverified = data["unverified"]
+
+        self._created_at = data["createdAt"]
+        self._updated_at = data["updatedAt"]
+        self._loaded_date = data["loadedDate"]
+        self._access_start_time = data.get("accessStartTime")
+        self._access_end_time = data.get("accessEndTime")
+        self._access_times = data.get("accessTimes")
 
 class LockDetail(AugustLockDetail):
     def __init__(self, data):
@@ -75,6 +95,12 @@ class AugustAPI(Api):
             ).json()
         )
 
+    def get_pins(self, access_token, lock_id):
+        json_dict = self._dict_to_api(
+            self._build_get_pins_request(access_token, lock_id)
+        ).json()
+
+        return [Pin(pin_json) for pin_json in json_dict.get("loaded", [])]
 
 def create_client():
     api = AugustAPI(timeout=20)

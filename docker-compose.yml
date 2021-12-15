@@ -6,6 +6,7 @@ services:
     build: ./august
     depends_on:
       - "wxfdashboardsaio_influxdb"
+      - "wxfdashboardsaio_grafana"
     environment:
       WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
       WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb

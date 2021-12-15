@@ -1,6 +1,7 @@
 from influxdb import InfluxDBClient
 from os import environ
 from activities import create_activities
+from pins import create_pins
 
 from august_api import create_client, Houses
 
@@ -56,7 +57,9 @@ for lock_detail in lock_details:
         json_body.append(create_measurement(lock_detail.keypad, houses, "keypad"))
 
 house_activity_measurements = create_activities(api, houses)
+pins_measurements = create_pins(api, houses)
 
 json_body.extend(house_activity_measurements)
+json_body.extend(pins_measurements)
 
 client.write_points(json_body)
