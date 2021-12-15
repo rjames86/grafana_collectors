@@ -53,7 +53,9 @@ for lock_detail in lock_details:
     json_body.append(create_measurement(lock_detail, houses))
 
     if lock_detail.keypad:
-        json_body.append(create_measurement(lock_detail.keypad, houses, "keypad"))
+        keypad_measurement = create_measurement(lock_detail.keypad, houses, "keypad")
+        print("Creating keypad data", keypad_measurement)
+        json_body.append(keypad_measurement)
 
 house_activity_measurements = create_activities(api, houses)
 

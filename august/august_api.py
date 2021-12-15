@@ -45,7 +45,7 @@ class Houses(list):
         house_name = "Unknown"
         for house in self:
             if house.house_id == id:
-                house_name = house.house_name
+                house_name = house.house_name.strip()
         return house_name
 
 
