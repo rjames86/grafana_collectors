@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DELAY=900 # 15 minutes
+DELAY=1800 # 30 minutes
 
 while (true); do
     echo "$(date) Fetching August lock data"
