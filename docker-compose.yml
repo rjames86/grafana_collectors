@@ -1,6 +1,21 @@
 
 
 services:
+  ecobee_collector:
+    container_name: ecobee_collector
+    build: ./ecobee_influx_connector
+    depends_on:
+      - "wxfdashboardsaio_influxdb"
+      - "wxfdashboardsaio_grafana"
+    environment:
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      AUGUST_USERNAME: "${AUGUST_USERNAME}"
+      AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
+    volumes:
+    - ecobee_collector_data:/var/lib/ecobee_collector
+    restart: always
   august_collector:
     container_name: august_collector
     build: ./august
@@ -82,4 +97,5 @@ volumes:
   wxfdashboardsaio-grafana-data:
   wxfdashboardsaio-influxdb-data:
   august_collector_data:
+  ecobee_collector_data:
 version: '3.3'
