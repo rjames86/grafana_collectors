@@ -2,10 +2,8 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math"
 	"os"
@@ -14,29 +12,30 @@ import (
 	"time"
 
 	"github.com/avast/retry-go"
-	"github.com/influxdata/influxdb-client-go/v2"
+	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/sethvargo/go-envconfig"
 
 	"ecobee_influx_connector/ecobee" // taken from https://github.com/rspier/go-ecobee and lightly customized
 )
 
 type Config struct {
-	APIKey             string `json:"api_key"`
-	WorkDir            string `json:"work_dir,omitempty"`
-	ThermostatID       string `json:"thermostat_id"`
-	InfluxServer       string `json:"influx_server"`
-	InfluxOrg          string `json:"influx_org,omitempty"`
-	InfluxUser         string `json:"influx_user,omitempty"`
-	InfluxPass         string `json:"influx_password,omitempty"`
-	InfluxToken        string `json:"influx_token,omitempty"`
-	InfluxBucket       string `json:"influx_bucket"`
-	WriteHeatPump1     bool   `json:"write_heat_pump_1"`
-	WriteHeatPump2     bool   `json:"write_heat_pump_2"`
-	WriteAuxHeat1      bool   `json:"write_aux_heat_1"`
-	WriteAuxHeat2      bool   `json:"write_aux_heat_2"`
-	WriteCool1         bool   `json:"write_cool_1"`
-	WriteCool2         bool   `json:"write_cool_2"`
-	WriteHumidifier    bool   `json:"write_humidifier"`
-	AlwaysWriteWeather bool   `json:"always_write_weather_as_current"`
+	APIKey             string `env:"API_KEY,required"`
+	WorkDir            string `env:"WORK_DIR"`
+	ThermostatID       string `env:"THERMOSTAT_ID,required"`
+	InfluxServer       string `env:"INFLUX_SERVER,required"`
+	InfluxOrg          string `env:"INFLUX_ORG"`
+	InfluxUser         string `env:"INFLUX_USER"`
+	InfluxPass         string `env:"INFLUX_PASSWORD"`
+	InfluxToken        string `env:"INFLUX_TOKEN"`
+	InfluxBucket       string `env:"INFLUX_BUCKET,required"`
+	WriteHeatPump1     bool   `env:"WRITE_HEAT_PUMP_1"`
+	WriteHeatPump2     bool   `env:"WRITE_HEAT_PUMP_2"`
+	WriteAuxHeat1      bool   `env:"WRITE_AUX_HEAT_1"`
+	WriteAuxHeat2      bool   `env:"WRITE_AUX_HEAT_2"`
+	WriteCool1         bool   `env:"WRITE_COOL_1"`
+	WriteCool2         bool   `env:"WRITE_COOL_2"`
+	WriteHumidifier    bool   `env:"WRITE_HUMIDIFIER"`
+	AlwaysWriteWeather bool   `env:"ALWAYS_WRITE_WEATHER_AS_CURRENT"`
 }
 
 const (
@@ -82,23 +81,15 @@ func IndoorHumidityRecommendation(outdoorTempF float64) int {
 }
 
 func main() {
-	var configFile = flag.String("config", "", "Configuration JSON file.")
 	var listThermostats = flag.Bool("list-thermostats", false, "List available thermostats, then exit.")
 	flag.Parse()
 
-	if *configFile == "" {
-		fmt.Println("-config is required.")
-		os.Exit(1)
+	var config Config
+	l := envconfig.PrefixLookuper("ECOBEE_", envconfig.OsLookuper())
+	if err := envconfig.ProcessWith(context.Background(), &config, l); err != nil {
+		panic(err)
 	}
 
-	config := Config{}
-	cfgBytes, err := ioutil.ReadFile(*configFile)
-	if err != nil {
-		log.Fatalf("Unable to read config file '%s': %s", *configFile, err)
-	}
-	if err = json.Unmarshal(cfgBytes, &config); err != nil {
-		log.Fatalf("Unable to parse config file '%s': %s", *configFile, err)
-	}
 	if config.APIKey == "" {
 		log.Fatal("api_key must be set in the config file.")
 	}
@@ -136,7 +127,7 @@ func main() {
 	const influxTimeout = 3 * time.Second
 	authString := ""
 	if config.InfluxUser != "" || config.InfluxPass != "" {
-		authString = fmt.Sprintf("%s:%s", config.InfluxUser, config.InfluxPass) 
+		authString = fmt.Sprintf("%s:%s", config.InfluxUser, config.InfluxPass)
 	} else if config.InfluxToken != "" {
 		authString = fmt.Sprintf("%s", config.InfluxToken)
 	}

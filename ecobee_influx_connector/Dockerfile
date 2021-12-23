@@ -7,6 +7,6 @@ RUN go get -d -v ./...
 RUN go install -v ./...
 RUN go build -o ./ecobee_influx_connector .
 
-CMD /go/src/app/ecobee_influx_connector -config "config.json"
+CMD /go/src/app/ecobee_influx_connector
 
 VOLUME /config
