@@ -46,6 +46,8 @@ services:
   wxfdashboardsaio_grafana:
     container_name: wxfdashboardsaio_grafana
     environment:
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
+      GF_AUTH_ANONYMOUS_ENABLED: false
       TZ: America/Denver
     image: lux4rd0/weatherflow-dashboards-grafana:latest
     ports:
