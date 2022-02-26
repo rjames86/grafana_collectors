@@ -20,10 +20,6 @@ client = InfluxDBClient(
 )
 client.create_database("august_data")
 
-
-DUNCAN_HOUSE_ID = "3f040bfd-acd0-4b2a-b633-d4fc1539d5a4"
-CENTRAL_HOUSE_ID = "06f1006e-6aa6-41ad-bf51-e2744f4ca80d"
-
 json_body = []
 
 
