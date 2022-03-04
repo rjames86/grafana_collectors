@@ -144,14 +144,25 @@ func main() {
 	influxWriteApi := influxClient.WriteAPIBlocking(config.InfluxOrg, config.InfluxBucket)
 	_ = influxWriteApi
 
+	type UpdateInterval struct {
+		LastWrittenRuntimeInterval int
+		LastWrittenWeather         time.Time
+		LastWrittenSensors         time.Time
+	}
+	lastUpdates := map[string]*UpdateInterval{}
+
+	for _, thermostatId := range config.ThermostatID {
+		lastUpdates[thermostatId] = &UpdateInterval{
+			LastWrittenRuntimeInterval: 0,
+			LastWrittenWeather:         time.Time{},
+			LastWrittenSensors:         time.Time{},
+		}
+	}
+
 	doUpdate := func() {
 		if err := retry.Do(
 			func() error {
 				for _, thermostatId := range config.ThermostatID {
-					lastWrittenRuntimeInterval := 0
-					lastWrittenWeather := time.Time{}
-					lastWrittenSensors := time.Time{}
-					
 					fmt.Println("Grabbing thermostat ", thermostatId)
 					t, err := client.GetThermostat(thermostatId)
 					if err != nil {
@@ -208,7 +219,8 @@ func main() {
 						fmt.Printf("\tcool 1 runtime: %d seconds\n\tcool 2 runtime: %d seconds\n",
 							cool1RunSec, cool2RunSec)
 
-						if latestRuntimeInterval != lastWrittenRuntimeInterval {
+						if latestRuntimeInterval != lastUpdates[thermostatId].LastWrittenRuntimeInterval {
+							fmt.Printf("Updating ecobee_runtime")
 							if err := retry.Do(func() error {
 								ctx, cancel := context.WithTimeout(context.Background(), influxTimeout)
 								defer cancel()
@@ -259,7 +271,7 @@ func main() {
 							}
 						}
 					}
-					lastWrittenRuntimeInterval = latestRuntimeInterval
+					lastUpdates[thermostatId].LastWrittenRuntimeInterval = latestRuntimeInterval
 
 					// assume t.LastModified for these:
 					sensorTime, err := time.Parse("2006-01-02 15:04:05", t.UtcTime)
@@ -293,7 +305,8 @@ func main() {
 							continue
 						}
 
-						if sensorTime != lastWrittenSensors {
+						if sensorTime != lastUpdates[thermostatId].LastWrittenSensors {
+							fmt.Printf("Updating ecobee_sensor")
 							if err := retry.Do(func() error {
 								ctx, cancel := context.WithTimeout(context.Background(), influxTimeout)
 								defer cancel()
@@ -323,7 +336,7 @@ func main() {
 							}
 						}
 					}
-					lastWrittenSensors = sensorTime
+					lastUpdates[thermostatId].LastWrittenSensors = sensorTime
 
 					weatherTime, err := time.Parse("2006-01-02 15:04:05", t.Weather.Timestamp)
 					if err != nil {
@@ -343,7 +356,8 @@ func main() {
 					fmt.Printf("\ttemperature: %.1f degF\n\tpressure: %d mb\n\thumidity: %d%%\n\tdew point: %.1f degF\n\twind: %d at %d mph\n\twind chill: %.1f degF\n\tvisibility: %.1f miles\n",
 						outdoorTemp, pressureMillibar, outdoorHumidity, dewpoint, windBearing, windspeedMph, windChill, visibilityMiles)
 
-					if weatherTime != lastWrittenWeather || config.AlwaysWriteWeather {
+					if weatherTime != lastUpdates[thermostatId].LastWrittenWeather || config.AlwaysWriteWeather {
+						fmt.Printf("Updating ecobee_weather")
 						if err := retry.Do(func() error {
 							ctx, cancel := context.WithTimeout(context.Background(), influxTimeout)
 							defer cancel()
@@ -372,7 +386,7 @@ func main() {
 							if err != nil {
 								return err
 							}
-							lastWrittenWeather = weatherTime
+							lastUpdates[thermostatId].LastWrittenWeather = weatherTime
 							return nil
 						}, retry.Attempts(2)); err != nil {
 							return err
