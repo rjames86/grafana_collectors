@@ -144,14 +144,14 @@ func main() {
 	influxWriteApi := influxClient.WriteAPIBlocking(config.InfluxOrg, config.InfluxBucket)
 	_ = influxWriteApi
 
-	lastWrittenRuntimeInterval := 0
-	lastWrittenWeather := time.Time{}
-	lastWrittenSensors := time.Time{}
-
 	doUpdate := func() {
 		if err := retry.Do(
 			func() error {
 				for _, thermostatId := range config.ThermostatID {
+					lastWrittenRuntimeInterval := 0
+					lastWrittenWeather := time.Time{}
+					lastWrittenSensors := time.Time{}
+					
 					fmt.Println("Grabbing thermostat ", thermostatId)
 					t, err := client.GetThermostat(thermostatId)
 					if err != nil {
