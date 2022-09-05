@@ -43,6 +43,21 @@ services:
     volumes:
     - august_collector_data:/var/lib/august_collector
     restart: always
+  purpleair_collector:
+    container_name: purpleair_collector
+    build: ./purpleair
+    depends_on:
+      - "wxfdashboardsaio_influxdb"
+      - "wxfdashboardsaio_grafana"
+    environment:
+      INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      INFLUXDB_URL: wxfdashboardsaio_influxdb
+      INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      SENSOR_ID: "80717"
+      INFLUX_DB: "purpleair"
+    volumes:
+    - purpleair_collector_data:/var/lib/purpleair
+    restart: always
   wxfdashboardsaio_grafana:
     container_name: wxfdashboardsaio_grafana
     environment:
@@ -112,3 +127,4 @@ volumes:
   wxfdashboardsaio-influxdb-data:
   august_collector_data:
   ecobee_collector_data:
+  purpleair_collector_data:

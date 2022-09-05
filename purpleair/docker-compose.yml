@@ -1,0 +1,9 @@
+version: "3.3"
+services:
+    purpleair:
+        container_name: purpleair
+        image: purpleair
+        restart: always
+        build:
+            context: .
+            dockerfile: ./Dockerfile
