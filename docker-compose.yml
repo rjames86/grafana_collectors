@@ -18,13 +18,13 @@ services:
       ECOBEE_INFLUX_TOKEN: ""
       ECOBEE_INFLUX_ORG: ""
       ECOBEE_ALWAYS_WRITE_WEATHER_AS_CURRENT: "false"
-      ECOBEE_WRITE_HEAT_PUMP_1: "false"
-      ECOBEE_WRITE_HEAT_PUMP_2: "false"
+      ECOBEE_WRITE_HEAT_PUMP_1: "true"
+      ECOBEE_WRITE_HEAT_PUMP_2: "true"
       ECOBEE_WRITE_AUX_HEAT_1: "true"
-      ECOBEE_WRITE_AUX_HEAT_2: "false"
+      ECOBEE_WRITE_AUX_HEAT_2: "true"
       ECOBEE_WRITE_COOL_1: "true"
-      ECOBEE_WRITE_COOL_2: "false"
-      ECOBEE_WRITE_HUMIDIFIER: "false"
+      ECOBEE_WRITE_COOL_2: "true"
+      ECOBEE_WRITE_HUMIDIFIER: "true"
     volumes:
     - ecobee_collector_data:/var/lib/ecobee_collector
     restart: always
