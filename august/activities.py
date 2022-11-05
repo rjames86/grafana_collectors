@@ -11,7 +11,7 @@ class GrafanaActivity:
 
     @property
     def activity_house_id(self):
-        self.lock_details.get_house_id_by_device_id(self.house_activity.device_id)
+        return self.lock_details.get_house_id_by_device_id(self.house_activity.device_id)
 
     @property
     def house_name(self):
@@ -25,7 +25,7 @@ class GrafanaActivity:
             time=self.house_activity._activity_time.isoformat(),
             tags=dict(
                 house=self.house_name,
-                house_id=self.activity_house_id
+                house_id=self.activity_house_id,
                 activity_type=self.house_activity.activity_type.name,
                 device_name=self.house_activity.device_name,
                 device_type=self.house_activity.device_type,
