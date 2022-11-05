@@ -36,6 +36,13 @@ def create_measurement(lock_detail, houses, type="lock"):
     )
 
 
+class LockDetails(list):
+    def get_house_id_by_device_id(self, device_id):
+        for ld in self:
+            if ld.device_id == device_id:
+                return ld.house_id
+        return None
+
 def get_lock_details():
     locks = api.get_locks(api.access_token)
     return [api.get_lock_detail(api.access_token, lock.device_id) for lock in locks]
@@ -54,7 +61,7 @@ for lock_detail in lock_details:
         print("Creating keypad data", keypad_measurement)
         json_body.append(keypad_measurement)
 
-house_activity_measurements = create_activities(api, houses)
+house_activity_measurements = create_activities(api, houses, lock_details)
 pins_measurements = create_pins(api, houses)
 
 json_body.extend(house_activity_measurements)
