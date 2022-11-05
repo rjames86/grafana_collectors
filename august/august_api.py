@@ -1,9 +1,9 @@
-from august.api import Api
-from august.keypad import KeypadDetail as AugustKeypadDetail
-from august.lock import LockDetail as AugustLockDetail
-from august.pin import Pin as AugustPin
-from august.authenticator import Authenticator
-from august.api_common import API_GET_HOUSES_URL
+from yalexs.api import Api
+from yalexs.keypad import KeypadDetail as AugustKeypadDetail
+from yalexs.lock import LockDetail as AugustLockDetail
+from yalexs.pin import Pin as AugustPin
+from yalexs.authenticator import Authenticator
+from yalexs.api_common import API_GET_HOUSES_URL
 from os import environ
 
 AUGUST_USERNAME = environ.get("AUGUST_USERNAME")
