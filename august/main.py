@@ -45,7 +45,7 @@ class LockDetails(list):
 
 def get_lock_details():
     locks = api.get_locks(api.access_token)
-    return [api.get_lock_detail(api.access_token, lock.device_id) for lock in locks]
+    return LockDetails([api.get_lock_detail(api.access_token, lock.device_id) for lock in locks])
 
 
 lock_details = get_lock_details()
