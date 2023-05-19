@@ -1,0 +1,8 @@
+version: '3.4'
+
+services:
+  august:
+    image: solaredge
+    build:
+      context: .
+      dockerfile: ./Dockerfile

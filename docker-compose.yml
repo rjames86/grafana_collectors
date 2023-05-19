@@ -28,6 +28,21 @@ services:
     volumes:
     - ecobee_collector_data:/var/lib/ecobee_collector
     restart: always
+  solaredge_connector:
+    container_name: solaredge_collector
+    build: ./solaredge
+    depends_on:
+      - "wxfdashboardsaio_influxdb"
+      - "wxfdashboardsaio_grafana"
+    environment:
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      SOLAREDGE_SITE_ID: "${SOLAREDGE_SITE_ID}"
+      SOLAREDGE_TOKEN: "${SOLAREDGE_TOKEN}"
+    volumes:
+    - solaredge_collector_data:/var/lib/solaredge_collector
+    restart: always
   august_collector:
     container_name: august_collector
     build: ./august
@@ -128,3 +143,4 @@ volumes:
   august_collector_data:
   ecobee_collector_data:
   purpleair_collector_data:
+  solaredge_collector_data:
