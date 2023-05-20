@@ -37,7 +37,7 @@ CURRENT_POWER_TAGS = {
 CURRENT_POWER_FIELD = "value"
 
 # measurement name for storing the lifetime energy data
-LIFETIME_ENERGY_MEASUREMENT = "sensor__energy"
+LIFETIME_ENERGY_MEASUREMENT = "sensor__lifetime_energy"
 # tags for storing with the lifetime energy data
 LIFETIME_ENERGY_TAGS = {
     "entity_id": "solaredge_lifetime_energy",
@@ -45,6 +45,16 @@ LIFETIME_ENERGY_TAGS = {
 }
 # field name to use for the lifetime energy data values
 LIFETIME_ENERGY_FIELD = "value"
+
+# measurement name for storing the lifetime energy data
+ENERGY_MEASUREMENT = "sensor__energy"
+# tags for storing with the lifetime energy data
+ENERGY_TAGS = {
+    "entity_id": "solaredge_energy",
+    "domain": "sensor"
+}
+# field name to use for the lifetime energy data values
+ENERGY_FIELD = "value"
 
 
 def _parse_input_timestamp(timestamp: str) -> datetime:
@@ -98,6 +108,20 @@ def pull_energy_data(client: Solaredge, begin: datetime, end: datetime, timeunit
                              _format_timestamp(end, SE_FMT_DATE),
                              time_unit=timeunit)
 
+def parse_energy_data(timeframe_energy_data, energy_data):
+    data_points = []
+    timeunit = energy_data['energy']['timeUnit']
+    offset = _offset_from_timeunit(timeunit)
+
+    for ed in energy_data['energy']['values']:
+        if ed['value'] is None:
+            continue
+
+        data_points.append({
+            'timestamp': _parse_solaredge_timestamp(ed['date']),
+            'value': ed['value'] 
+        })
+    return data_points
 
 def parse_lifetime_energy_data(timeframe_energy_data, energy_data):
     data_points = []
@@ -161,7 +185,7 @@ def main():
     parser.add_argument("--begin", type=str, default=default_begin, help="Begin timestamp in the format YYYY-MM-DD[ hh:mm:ss]")
     parser.add_argument("--end", type=str, default=None, help="End timestamp in the format YYYY-MM-DD[ hh:mm:ss]")
     parser.add_argument("-p", "--power", action='store_true', help="Include current power data")
-    parser.add_argument("-e", "--energy", action='store_true', help="Include lifetime energy data")
+    parser.add_argument("-e", "--energy", action='store_true', help="Include energy data")
     parser.add_argument("-g", "--granularity", default='QUARTER_OF_AN_HOUR', help="Granularity for energy data",
                         choices=['QUARTER_OF_AN_HOUR', 'HOUR', 'DAY', 'WEEK'])
     parser.add_argument("-v", "--verbose", action='store_true', help="Verbose output")
@@ -197,18 +221,19 @@ def main():
             print("Raw timeframe data:")
             print(timeframe_data)
 
-        lifetime_energy_data = parse_lifetime_energy_data(timeframe_data, energy_data)
-        print("got {} lifetime energy data points".format(len(lifetime_energy_data)))
+        # lifetime_energy_data = parse_lifetime_energy_data(timeframe_data, energy_data)
+        energy_data = parse_energy_data(timeframe_data, energy_data)
+        print("got {} energy data points".format(len(energy_data)))
         if args.verbose:
-            print("Parsed lifetime energy data:")
-            print(lifetime_energy_data)
+            print("Parsed energy data:")
+            print(energy_data)
             print("writing energy")
 
         write_data(influx_client,
-                   lifetime_energy_data,
-                   LIFETIME_ENERGY_MEASUREMENT,
-                   LIFETIME_ENERGY_TAGS,
-                   LIFETIME_ENERGY_FIELD)
+                   energy_data,
+                   ENERGY_MEASUREMENT,
+                   ENERGY_TAGS,
+                   ENERGY_FIELD)
 
     if args.power:
         current_power_data = pull_current_power_data(solaredge_client, begin, end) \
