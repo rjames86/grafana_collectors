@@ -1,4 +1,3 @@
-from influxdb import InfluxDBClient
 from os import environ
 from activities import create_activities
 from pins import create_pins
@@ -13,14 +12,6 @@ INFLUXDB_PASSWORD = environ.get("WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD")
 
 api = create_client()
 
-client = InfluxDBClient(
-    host=INFLUXDB_URL,
-    port=8086,
-    username=INFLUXDB_USERNAME,
-    password=INFLUXDB_PASSWORD,
-    database="august_data",
-)
-client.create_database("august_data")
 
 json_body = []
 
@@ -72,5 +63,3 @@ json_body.extend(pins_measurements)
 resp = requests.post('http://api:5000/influx/august_data/write', json=dict(data_points=json_body))
 
 print(resp.json())
-
-# client.write_points(json_body)
