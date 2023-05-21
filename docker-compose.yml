@@ -1,6 +1,27 @@
 version: '3.3'
 
 services:
+  api:
+    container_name: api
+    build: ./api
+    depends_on:
+      - "wxfdashboardsaio_influxdb"
+    ports:
+    - protocol: tcp
+      published: 8080
+      target: 5000
+    restart: always
+    volumes: ['./api:/app']
+    entrypoint:
+      - flask
+      - run
+      - --host=0.0.0.0
+    environment:
+      FLASK_DEBUG: 1
+      FLASK_APP: ./main.py
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
   ecobee_collector:
     container_name: ecobee_collector
     build: ./ecobee_influx_connector
@@ -47,12 +68,9 @@ services:
     container_name: august_collector
     build: ./august
     depends_on:
-      - "wxfdashboardsaio_influxdb"
+      - "api"
       - "wxfdashboardsaio_grafana"
     environment:
-      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
-      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
-      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
       AUGUST_USERNAME: "${AUGUST_USERNAME}"
       AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
     volumes:
