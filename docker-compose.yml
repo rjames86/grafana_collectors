@@ -134,6 +134,8 @@ services:
     container_name: wxfdashboardsaio-collector-74f3e5ca
     environment:
       TZ: America/Denver
+      WEATHERFLOW_COLLECTOR_BACKEND_TYPE: "influxdb"
+      WEATHERFLOW_COLLECTOR_DOCKER_HEALTHCHECK_ENABLED: "true"
       WEATHERFLOW_COLLECTOR_DEBUG: "false"
       WEATHERFLOW_COLLECTOR_DEBUG_CURL: "false"
       WEATHERFLOW_COLLECTOR_DISABLE_HEALTH_CHECK: "false"
@@ -148,6 +150,7 @@ services:
       WEATHERFLOW_COLLECTOR_INFLUXDB_URL: http://wxfdashboardsaio_influxdb:8086/write?db=weatherflow
       WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
       WEATHERFLOW_COLLECTOR_TOKEN: "${WEATHERFLOW_COLLECTOR_TOKEN}"
+      WEATHERFLOW_COLLECTOR_STATION_ID: 83924
     restart: always
     depends_on:
       - "wxfdashboardsaio_influxdb"
