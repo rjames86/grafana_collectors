@@ -5,6 +5,7 @@ import argparse
 import example_data
 import secrets
 import pytz
+from collections import defaultdict
 
 from datetime import datetime, timedelta
 from influxdb import InfluxDBClient
@@ -26,35 +27,30 @@ IDB_DATABASE = "solar_edge"
 IDB_TIMEZONE = pytz.utc
 IDB_FMT = '%Y-%m-%dT%H:%M:%SZ'
 
-# measurement name for storing the power data
-CURRENT_POWER_MEASUREMENT = "sensor__power"
-# tags for storing with the power data
-CURRENT_POWER_TAGS = {
-    "entity_id": "solaredge_current_power",
-    "domain": "sensor"
-}
-# field name to use for the power data values
-CURRENT_POWER_FIELD = "value"
+class InfluxKeys:
+    def __init__(self, measurement, field='value'):
+        self.measurement = 'sensor__%s' % measurement
+        self.tags = {
+            'entity_id': 'solaredge_%s' % measurement,
+            'domain': 'sensor',
+        }
+        self.field = field
 
-# measurement name for storing the lifetime energy data
-LIFETIME_ENERGY_MEASUREMENT = "sensor__lifetime_energy"
-# tags for storing with the lifetime energy data
-LIFETIME_ENERGY_TAGS = {
-    "entity_id": "solaredge_lifetime_energy",
-    "domain": "sensor"
-}
-# field name to use for the lifetime energy data values
-LIFETIME_ENERGY_FIELD = "value"
+power_measurements_to_keys = dict(
+    Production=InfluxKeys('power_production'),
+    Consumption=InfluxKeys('power_consumption'),
+    SelfConsumption=InfluxKeys('power_self_consumption'),
+    FeedIn=InfluxKeys('power_feedin'),
+    Purchased=InfluxKeys('power_import'),
+)
 
-# measurement name for storing the lifetime energy data
-ENERGY_MEASUREMENT = "sensor__energy"
-# tags for storing with the lifetime energy data
-ENERGY_TAGS = {
-    "entity_id": "solaredge_energy",
-    "domain": "sensor"
-}
-# field name to use for the lifetime energy data values
-ENERGY_FIELD = "value"
+energy_measurements_to_keys = dict(
+    Production=InfluxKeys('energy_production'),
+    Consumption=InfluxKeys('energy_consumption'),
+    SelfConsumption=InfluxKeys('energy_self_consumption'),
+    FeedIn=InfluxKeys('energy_feedin'),
+    Purchased=InfluxKeys('energy_import'),
+)
 
 
 def _parse_input_timestamp(timestamp: str) -> datetime:
@@ -74,32 +70,15 @@ def _format_timestamp(dt: datetime, fmt: str) -> str:
     return dt.strftime(fmt)
 
 
-def _offset_from_timeunit(timeunit: str) -> timedelta:
-    if timeunit == 'WEEK':
-        return timedelta(days=7)
-    if timeunit == 'DAY':
-        return timedelta(days=1)
-    if timeunit == 'HOUR':
-        return timedelta(hours=1)
-    if timeunit == 'QUARTER_OF_AN_HOUR':
-        return timedelta(minutes=15)
-
-    raise Exception("Unsupported timeunit {}".format(timeunit))
-
-
 def pull_current_power_data(client: Solaredge, begin: datetime, end: datetime):
     return client.get_power(secrets.solaredge_site_id,
                             _format_timestamp(begin, SE_FMT_DATETIME),
                             _format_timestamp(end, SE_FMT_DATETIME))
 
-
-def pull_timeframe_energy_data(client: Solaredge, begin: datetime, end: datetime, timeunit: str):
-    # to include the energy on the end date in the time frame data we need to add a day
-    end = end + timedelta(days=1)
-    return client.get_time_frame_energy(secrets.solaredge_site_id,
-                                        _format_timestamp(begin, SE_FMT_DATE),
-                                        _format_timestamp(end, SE_FMT_DATE),
-                                        time_unit=timeunit)
+def pull_power_details_data(client: Solaredge, begin: datetime, end: datetime):
+    return client.get_power_details(secrets.solaredge_site_id,
+                                    _format_timestamp(begin, SE_FMT_DATETIME),
+                                    _format_timestamp(end, SE_FMT_DATETIME))
 
 
 def pull_energy_data(client: Solaredge, begin: datetime, end: datetime, timeunit: str):
@@ -108,10 +87,32 @@ def pull_energy_data(client: Solaredge, begin: datetime, end: datetime, timeunit
                              _format_timestamp(end, SE_FMT_DATE),
                              time_unit=timeunit)
 
-def parse_energy_data(timeframe_energy_data, energy_data):
+def pull_energy_details_data(client: Solaredge, begin: datetime, end: datetime, timeunit: str):
+    return client.get_energy_details(secrets.solaredge_site_id,
+                             _format_timestamp(begin, SE_FMT_DATETIME),
+                             _format_timestamp(end, SE_FMT_DATETIME),
+                             None,
+                             time_unit=timeunit)
+
+
+def parse_details_data(details, detail_key):
+    data_points = defaultdict(list)
+
+    for meter in details[detail_key]['meters']:
+        meter_type = meter['type']
+
+        for value in meter['values']:
+            if value.get('value') is None:
+                continue
+
+            data_points[meter_type].append({
+                'timestamp': _parse_solaredge_timestamp(value['date']),
+                'value': value['value'] 
+            }) 
+    return data_points 
+
+def parse_energy_data(energy_data):
     data_points = []
-    timeunit = energy_data['energy']['timeUnit']
-    offset = _offset_from_timeunit(timeunit)
 
     for ed in energy_data['energy']['values']:
         if ed['value'] is None:
@@ -121,29 +122,6 @@ def parse_energy_data(timeframe_energy_data, energy_data):
             'timestamp': _parse_solaredge_timestamp(ed['date']),
             'value': ed['value'] 
         })
-    return data_points
-
-def parse_lifetime_energy_data(timeframe_energy_data, energy_data):
-    data_points = []
-    lifetime_energy = timeframe_energy_data['timeFrameEnergy']['startLifetimeEnergy']['energy']
-    # end_lifetime_energy = timeframe_energy_data['timeFrameEnergy']['endLifetimeEnergy']['energy']
-    timeunit = energy_data['energy']['timeUnit']
-    offset = _offset_from_timeunit(timeunit)
-
-    for ed in energy_data['energy']['values']:
-        if ed['value'] is None:
-            continue
-
-        lifetime_energy += ed['value']
-        data_points.append({
-            'timestamp': _parse_solaredge_timestamp(ed['date']) + offset,
-            'value': lifetime_energy
-        })
-
-    # no point in comparing with end_lifetime_energy, the returned data is always off for god knows what reason
-    # if end_lifetime_energy != lifetime_energy:
-    #     print("End lifetime energy mismatch; calculated={} timeframe data={}"
-    #           .format(lifetime_energy, end_lifetime_energy))
     return data_points
 
 
@@ -204,56 +182,45 @@ def main():
                                    password=secrets.influxdb_pass)
     influx_client.switch_database(IDB_DATABASE)
 
-    if not args.power and not args.energy:
-        args.power = True
-        args.energy = True
+    energy_details_data = pull_energy_details_data(solaredge_client, begin, end, args.granularity)
+    if args.verbose:
+        print("Raw energy details data:")
+        print(energy_details_data)
+    energy_details = parse_details_data(energy_details_data, 'energyDetails')
+    print("got {} energy data points".format(len(energy_details)))
 
-    if args.energy:
-        energy_data = pull_energy_data(solaredge_client, begin, end, args.granularity) \
-            if not args.dry_run else example_data.energy_data
-        if args.verbose:
-            print("Raw energy data:")
-            print(energy_data)
-
-        timeframe_data = pull_timeframe_energy_data(solaredge_client, begin, end, args.granularity) \
-            if not args.dry_run else example_data.time_frame_energy_data
-        if args.verbose:
-            print("Raw timeframe data:")
-            print(timeframe_data)
-
-        # lifetime_energy_data = parse_lifetime_energy_data(timeframe_data, energy_data)
-        energy_data = parse_energy_data(timeframe_data, energy_data)
-        print("got {} energy data points".format(len(energy_data)))
-        if args.verbose:
-            print("Parsed energy data:")
-            print(energy_data)
-            print("writing energy")
-
+    if args.verbose:
+        print("Parsed energy details:")
+        print(energy_details)
+        print("writing energy details")
+    
+    for meter_type, data in energy_details.items():
+        influx_data = energy_measurements_to_keys[meter_type]
         write_data(influx_client,
-                   energy_data,
-                   ENERGY_MEASUREMENT,
-                   ENERGY_TAGS,
-                   ENERGY_FIELD)
+                    data,
+                    influx_data.measurement,
+                    influx_data.tags,
+                    influx_data.field)
 
-    if args.power:
-        current_power_data = pull_current_power_data(solaredge_client, begin, end) \
-            if not args.dry_run else example_data.power_data
-        if args.verbose:
-            print("Raw current power data:")
-            print(current_power_data)
+    power_details_data = pull_power_details_data(solaredge_client, begin, end)
+    if args.verbose:
+        print("Raw power details data:")
+        print(power_details_data)
+    power_details = parse_details_data(power_details_data, 'powerDetails')
+    print("got {} power data points".format(len(power_details)))
 
-        current_power_data = parse_current_power_data(current_power_data)
-        print("got {} power data points".format(len(current_power_data)))
-        if args.verbose:
-            print("Parsed current power data:")
-            print(current_power_data)
-
+    if args.verbose:
+        print("Parsed power details:")
+        print(power_details)
+        print("writing power details")
+    
+    for meter_type, data in power_details.items():
+        influx_data = power_measurements_to_keys[meter_type]
         write_data(influx_client,
-                   current_power_data,
-                   CURRENT_POWER_MEASUREMENT,
-                   CURRENT_POWER_TAGS,
-                   CURRENT_POWER_FIELD)
-
+                    data,
+                    influx_data.measurement,
+                    influx_data.tags,
+                    influx_data.field)
 
 if __name__ == '__main__':
     main()
