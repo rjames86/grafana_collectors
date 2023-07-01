@@ -3,12 +3,12 @@
 
 import argparse
 import example_data
+import requests
 import secrets
 import pytz
 from collections import defaultdict
 
 from datetime import datetime, timedelta
-from influxdb import InfluxDBClient
 from solaredge import Solaredge
 
 # update this to your local timezone
@@ -18,14 +18,12 @@ SE_TIMEZONE = pytz.timezone("America/Denver")
 SE_FMT_DATE = '%Y-%m-%d'
 SE_FMT_DATETIME = '%Y-%m-%d %H:%M:%S'
 
-# influxdb constants
-IDB_HOST = secrets.INFLUXDB_URL
-IDB_PORT = 8086
 IDB_DATABASE = "solar_edge"
 
 # this is the timezone used to store the data in InfluxDB. UTC is usually a good choice.
 IDB_TIMEZONE = pytz.utc
 IDB_FMT = '%Y-%m-%dT%H:%M:%SZ'
+
 
 class InfluxKeys:
     def __init__(self, measurement, field='value'):
@@ -35,6 +33,7 @@ class InfluxKeys:
             'domain': 'sensor',
         }
         self.field = field
+
 
 power_measurements_to_keys = dict(
     Production=InfluxKeys('power_production'),
@@ -75,6 +74,7 @@ def pull_current_power_data(client: Solaredge, begin: datetime, end: datetime):
                             _format_timestamp(begin, SE_FMT_DATETIME),
                             _format_timestamp(end, SE_FMT_DATETIME))
 
+
 def pull_power_details_data(client: Solaredge, begin: datetime, end: datetime):
     return client.get_power_details(secrets.solaredge_site_id,
                                     _format_timestamp(begin, SE_FMT_DATETIME),
@@ -87,12 +87,13 @@ def pull_energy_data(client: Solaredge, begin: datetime, end: datetime, timeunit
                              _format_timestamp(end, SE_FMT_DATE),
                              time_unit=timeunit)
 
+
 def pull_energy_details_data(client: Solaredge, begin: datetime, end: datetime, timeunit: str):
     return client.get_energy_details(secrets.solaredge_site_id,
-                             _format_timestamp(begin, SE_FMT_DATETIME),
-                             _format_timestamp(end, SE_FMT_DATETIME),
-                             None,
-                             time_unit=timeunit)
+                                     _format_timestamp(begin, SE_FMT_DATETIME),
+                                     _format_timestamp(end, SE_FMT_DATETIME),
+                                     None,
+                                     time_unit=timeunit)
 
 
 def parse_details_data(details, detail_key):
@@ -107,9 +108,10 @@ def parse_details_data(details, detail_key):
 
             data_points[meter_type].append({
                 'timestamp': _parse_solaredge_timestamp(value['date']),
-                'value': value['value'] 
-            }) 
-    return data_points 
+                'value': value['value']
+            })
+    return data_points
+
 
 def parse_energy_data(energy_data):
     data_points = []
@@ -120,7 +122,7 @@ def parse_energy_data(energy_data):
 
         data_points.append({
             'timestamp': _parse_solaredge_timestamp(ed['date']),
-            'value': ed['value'] 
+            'value': ed['value']
         })
     return data_points
 
@@ -139,7 +141,7 @@ def parse_current_power_data(power_data):
     return data_points
 
 
-def write_data(client, data, measurement, tags, field_name):
+def write_data(data, measurement, tags, field_name):
     data_points = []
     for d in data:
         dp = {
@@ -150,23 +152,28 @@ def write_data(client, data, measurement, tags, field_name):
                 field_name: d['value']
             }
         }
-        print(dp)
         data_points.append(dp)
 
-    client.write_points(data_points)
+    requests.post('http://api:5000/influx/august_data/write', json=dict(data_points=data_points))
 
 
 def main():
-    default_begin = (datetime.now() - timedelta(days=3)).strftime('%Y-%m-%d')
+    default_begin = (datetime.now() - timedelta(days=14)).strftime('%Y-%m-%d')
 
-    parser = argparse.ArgumentParser(description='Pull data from the SolarEdge API and store it into an InfluxDB database.')
-    parser.add_argument("--begin", type=str, default=default_begin, help="Begin timestamp in the format YYYY-MM-DD[ hh:mm:ss]")
-    parser.add_argument("--end", type=str, default=None, help="End timestamp in the format YYYY-MM-DD[ hh:mm:ss]")
-    parser.add_argument("-p", "--power", action='store_true', help="Include current power data")
-    parser.add_argument("-e", "--energy", action='store_true', help="Include energy data")
+    parser = argparse.ArgumentParser(
+        description='Pull data from the SolarEdge API and store it into an InfluxDB database.')
+    parser.add_argument("--begin", type=str, default=default_begin,
+                        help="Begin timestamp in the format YYYY-MM-DD[ hh:mm:ss]")
+    parser.add_argument("--end", type=str, default=None,
+                        help="End timestamp in the format YYYY-MM-DD[ hh:mm:ss]")
+    parser.add_argument("-p", "--power", action='store_true',
+                        help="Include current power data")
+    parser.add_argument("-e", "--energy", action='store_true',
+                        help="Include energy data")
     parser.add_argument("-g", "--granularity", default='QUARTER_OF_AN_HOUR', help="Granularity for energy data",
                         choices=['QUARTER_OF_AN_HOUR', 'HOUR', 'DAY', 'WEEK'])
-    parser.add_argument("-v", "--verbose", action='store_true', help="Verbose output")
+    parser.add_argument("-v", "--verbose",
+                        action='store_true', help="Verbose output")
     parser.add_argument("-d", "--dry-run", action='store_true', help="Don't pull any actual data from the solaredge api,"
                                                                      " use example data instead")
     args = parser.parse_args()
@@ -176,13 +183,8 @@ def main():
 
     solaredge_client = Solaredge(secrets.solaredge_token)
 
-    influx_client = InfluxDBClient(host=IDB_HOST,
-                                   port=IDB_PORT,
-                                   username=secrets.influxdb_user,
-                                   password=secrets.influxdb_pass)
-    influx_client.switch_database(IDB_DATABASE)
-
-    energy_details_data = pull_energy_details_data(solaredge_client, begin, end, args.granularity)
+    energy_details_data = pull_energy_details_data(
+        solaredge_client, begin, end, args.granularity)
     if args.verbose:
         print("Raw energy details data:")
         print(energy_details_data)
@@ -193,14 +195,14 @@ def main():
         print("Parsed energy details:")
         print(energy_details)
         print("writing energy details")
-    
+
     for meter_type, data in energy_details.items():
         influx_data = energy_measurements_to_keys[meter_type]
-        write_data(influx_client,
-                    data,
-                    influx_data.measurement,
-                    influx_data.tags,
-                    influx_data.field)
+        write_data(
+            data,
+            influx_data.measurement,
+            influx_data.tags,
+            influx_data.field)
 
     power_details_data = pull_power_details_data(solaredge_client, begin, end)
     if args.verbose:
@@ -213,14 +215,15 @@ def main():
         print("Parsed power details:")
         print(power_details)
         print("writing power details")
-    
+
     for meter_type, data in power_details.items():
         influx_data = power_measurements_to_keys[meter_type]
-        write_data(influx_client,
-                    data,
-                    influx_data.measurement,
-                    influx_data.tags,
-                    influx_data.field)
+        write_data(
+            data,
+            influx_data.measurement,
+            influx_data.tags,
+            influx_data.field)
+
 
 if __name__ == '__main__':
     main()
