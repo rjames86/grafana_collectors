@@ -154,7 +154,7 @@ def write_data(data, measurement, tags, field_name):
         }
         data_points.append(dp)
 
-    requests.post('http://api:5000/influx/august_data/write', json=dict(data_points=data_points))
+    requests.post('http://api:5000/influx/solar_edge/write', json=dict(data_points=data_points))
 
 
 def main():
