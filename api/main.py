@@ -22,7 +22,7 @@ def write_influxdb(database):
         write_influxdb(database, data_points)
         return jsonify(dict(success=True, message='Successfully written'))
     except Exception as e:
-        return jsonify(dict(success=False, message=e.message))
+        return jsonify(dict(success=False, message=str(e)))
 
 def write_influxdb(database, data_points):
     influx_client.create_database(database)
