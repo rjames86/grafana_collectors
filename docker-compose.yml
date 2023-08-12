@@ -93,11 +93,12 @@ services:
     restart: always
   wxfdashboardsaio_grafana:
     container_name: wxfdashboardsaio_grafana
+    build: ./grafana
     environment:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       TZ: America/Denver
-    image: lux4rd0/weatherflow-dashboards-grafana:latest
+    # image: lux4rd0/weatherflow-dashboards-grafana:latest
     ports:
     - protocol: tcp
       published: 3000
@@ -159,6 +160,28 @@ services:
     - protocol: udp
       published: 50222
       target: 50222
+  pihole-influxdb:
+    image: avojak/pihole-influxdb:latest
+    container_name: pihole-influxdb
+    restart: unless-stopped
+    environment:
+      PIHOLE_ALIAS: pihole
+      PIHOLE_ADDRESS: http://pi.hole
+      PIHOLE_TOKEN: "${PIHOLE_TOKEN}"
+      INFLUXDB_ADDRESS: http://influxdb2:8086
+      INFLUXDB_CREATE_BUCKET: true
+      INFLUXDB_ORG: my-org
+      INFLUXDB_TOKEN: "${INFLUXDB2_TOKEN}"
+      INFLUXDB_BUCKET: pihole
+    depends_on:
+      - influxdb2
+  influxdb2:
+    image: influxdb:2.6-alpine
+    volumes:
+      # Mount for influxdb data directory and configuration
+      - influxdbv2:/var/lib/influxdb2:rw
+    ports:
+      - "8087:8086"
 volumes:
   wxfdashboardsaio-grafana-data:
   wxfdashboardsaio-influxdb-data:
@@ -166,3 +189,4 @@ volumes:
   ecobee_collector_data:
   purpleair_collector_data:
   solaredge_collector_data:
+  influxdbv2:
