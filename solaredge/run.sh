@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DELAY=1800 # 30 minutes
+DELAY=600 # 10 minutes
 
 while (true); do
     echo "$(date) Fetching SolarEdge data"
