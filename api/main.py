@@ -41,9 +41,6 @@ def get_curent_data():
     latest_power_query = f'SELECT last("value") FROM "sensor__power_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
     total_energy_query = f'SELECT sum("value") FROM "sensor__energy_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
 
-    print(latest_power_query, file=sys.stderr)
-    print(total_energy_query, file=sys.stderr)
-
     latest_power_results = list(influx_client.query(latest_power_query).get_points())[0]
     total_energy_results = list(influx_client.query(total_energy_query).get_points())[0]
 
