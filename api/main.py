@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 from influxdb import InfluxDBClient
 import sys
+from datetime import datetime
 
 from env import (
     INFLUXDB_URL,
@@ -29,9 +30,14 @@ def write_influxdb(database):
 
 @app.route("/influx/latest_data", methods=["GET"])
 def get_curent_data():
+    now = datetime.now()
+    start_of_day = datetime(now.year,now.month,now.day)
+    start_of_day_ms = int(start_of_day.timestamp() * 1000)
+
+
     influx_client.switch_database("solar_edge")
-    latest_power_query = 'SELECT last("value") FROM "sensor__power_production" WHERE time >= 1700118000000ms and time <= now()'
-    total_energy_query = 'SELECT sum("value") FROM "sensor__energy_production" WHERE time >= 1700118000000ms and time <= now()'
+    latest_power_query = f'SELECT last("value") FROM "sensor__power_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
+    total_energy_query = f'SELECT sum("value") FROM "sensor__energy_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
 
     latest_power_results = list(influx_client.query(latest_power_query).get_points())[0]
     total_energy_results = list(influx_client.query(total_energy_query).get_points())[0]
