@@ -31,11 +31,10 @@ def write_influxdb(database):
 
 @app.route("/influx/latest_data", methods=["GET"])
 def get_curent_data():
-    tz = pytz.timezone('America/Denver')
+    tz = pytz.timezone("America/Denver")
     now = datetime.now(tz)
-    start_of_day = datetime(now.year,now.month,now.day)
+    start_of_day = datetime(now.year, now.month, now.day)
     start_of_day_ms = int(start_of_day.timestamp() * 1000)
-
 
     influx_client.switch_database("solar_edge")
     latest_power_query = f'SELECT last("value") FROM "sensor__power_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
@@ -44,13 +43,21 @@ def get_curent_data():
     latest_power_results = list(influx_client.query(latest_power_query).get_points())[0]
     total_energy_results = list(influx_client.query(total_energy_query).get_points())[0]
 
+    last_update = datetime.fromisoformat(latest_power_results["time"])
+
     power_watts = latest_power_results["last"]
     power_kw = f"{power_watts/1000:.2f}"
 
     energy_watts = total_energy_results["sum"]
     energy_kwh = f"{energy_watts/1000:.2f}"
 
-    return jsonify(dict(power=power_kw, energy=energy_kwh))
+    return jsonify(
+        dict(
+            power=power_kw,
+            energy=energy_kwh,
+            last_updated=last_update.astimezone(tz=tz).isoformat(),
+        )
+    )
 
 
 def write_influxdb(database, data_points):
