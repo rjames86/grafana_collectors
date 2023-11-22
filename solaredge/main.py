@@ -144,6 +144,12 @@ def parse_current_power_data(power_data):
 def write_data(data, measurement, tags, field_name):
     data_points = []
     for d in data:
+
+        year, month = d['timestamp'].month, d['timestamp'].year
+
+        tags['year'] = year
+        tags['month'] = month
+
         dp = {
             "measurement": measurement,
             "tags": tags,
