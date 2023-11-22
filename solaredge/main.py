@@ -211,7 +211,8 @@ def main():
             data,
             influx_data.measurement,
             influx_data.tags,
-            influx_data.field)
+            influx_data.field,
+            args.verbose)
 
     power_details_data = pull_power_details_data(solaredge_client, begin, end)
     if args.verbose:
