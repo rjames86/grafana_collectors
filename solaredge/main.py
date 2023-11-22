@@ -145,7 +145,7 @@ def write_data(data, measurement, tags, field_name, verbose):
     data_points = []
     for d in data:
 
-        year, month = d['timestamp'].month, d['timestamp'].year
+        month, year = d['timestamp'].month, d['timestamp'].year
 
         tags['year'] = year
         tags['month'] = month
