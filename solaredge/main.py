@@ -141,7 +141,7 @@ def parse_current_power_data(power_data):
     return data_points
 
 
-def write_data(data, measurement, tags, field_name):
+def write_data(data, measurement, tags, field_name, verbose):
     data_points = []
     for d in data:
 
@@ -158,6 +158,9 @@ def write_data(data, measurement, tags, field_name):
                 field_name: d['value']
             }
         }
+        if verbose:
+            print(dp)
+
         data_points.append(dp)
 
     requests.post('http://api:5000/influx/solar_edge/write', json=dict(data_points=data_points))
@@ -228,7 +231,8 @@ def main():
             data,
             influx_data.measurement,
             influx_data.tags,
-            influx_data.field)
+            influx_data.field,
+            args.verbose)
 
 
 if __name__ == '__main__':
