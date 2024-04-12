@@ -33,7 +33,7 @@ def write_influxdb(database):
 def get_curent_data():
     tz = pytz.timezone("America/Denver")
     now = datetime.now(tz)
-    start_of_day = datetime(now.year, now.month, now.day)
+    start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start_of_day_ms = int(start_of_day.timestamp() * 1000)
 
     influx_client.switch_database("solar_edge")
