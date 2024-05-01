@@ -19,9 +19,13 @@ app = Flask(__name__)
 
 
 @app.route("/influx/<database>/write", methods=["POST"])
-def write_influxdb(database):
+def write_influxdb_post(database):
     data = request.get_json()
     data_points = data.get("data_points", [])
+    verbose = data.get('verbose', False)
+
+    if verbose:
+        print(data_points)
     try:
         write_influxdb(database, data_points)
         return jsonify(dict(success=True, message="Successfully written"))
