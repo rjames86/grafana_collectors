@@ -149,7 +149,7 @@ def write_data(data, measurement, tags, field_name, verbose):
     for d in data:
 
         local_dt = date_in_local_timezone(d['timestamp'])
-        month, year = local_dt['timestamp'].month, local_dt['timestamp'].year
+        month, year = local_dt.month, local_dt.year
 
         tags['year'] = year
         tags['month'] = month
