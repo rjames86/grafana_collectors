@@ -64,6 +64,9 @@ def _parse_solaredge_timestamp(timestamp: str) -> datetime:
     dt_local = SE_TIMEZONE.localize(dt)
     return dt_local.astimezone(IDB_TIMEZONE)
 
+def date_in_local_timezone(dt: datetime) -> datetime:
+    return dt.astimezone(SE_TIMEZONE)
+
 
 def _format_timestamp(dt: datetime, fmt: str) -> str:
     return dt.strftime(fmt)
@@ -145,7 +148,8 @@ def write_data(data, measurement, tags, field_name, verbose):
     data_points = []
     for d in data:
 
-        month, year = d['timestamp'].month, d['timestamp'].year
+        local_dt = date_in_local_timezone(d['timestamp'])
+        month, year = local_dt['timestamp'].month, local_dt['timestamp'].year
 
         tags['year'] = year
         tags['month'] = month
