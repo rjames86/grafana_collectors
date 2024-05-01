@@ -198,16 +198,16 @@ def main():
 
     energy_details_data = pull_energy_details_data(
         solaredge_client, begin, end, args.granularity)
-    if args.verbose:
-        print("Raw energy details data:")
-        print(energy_details_data)
+    # if args.verbose:
+    #     print("Raw energy details data:")
+    #     print(energy_details_data)
     energy_details = parse_details_data(energy_details_data, 'energyDetails')
     print("got {} energy data points".format(len(energy_details)))
 
-    if args.verbose:
-        print("Parsed energy details:")
-        print(energy_details)
-        print("writing energy details")
+    # if args.verbose:
+    #     print("Parsed energy details:")
+    #     print(energy_details)
+    #     print("writing energy details")
 
     for meter_type, data in energy_details.items():
         influx_data = energy_measurements_to_keys[meter_type]
@@ -219,16 +219,16 @@ def main():
             args.verbose)
 
     power_details_data = pull_power_details_data(solaredge_client, begin, end)
-    if args.verbose:
-        print("Raw power details data:")
-        print(power_details_data)
+    # if args.verbose:
+    #     print("Raw power details data:")
+    #     print(power_details_data)
     power_details = parse_details_data(power_details_data, 'powerDetails')
     print("got {} power data points".format(len(power_details)))
 
-    if args.verbose:
-        print("Parsed power details:")
-        print(power_details)
-        print("writing power details")
+    # if args.verbose:
+    #     print("Parsed power details:")
+    #     print(power_details)
+    #     print("writing power details")
 
     for meter_type, data in power_details.items():
         influx_data = power_measurements_to_keys[meter_type]
