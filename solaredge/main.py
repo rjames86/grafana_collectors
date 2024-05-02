@@ -147,16 +147,17 @@ def parse_current_power_data(power_data):
 def write_data(data, measurement, tags, field_name, verbose):
     data_points = []
     for d in data:
-
         local_dt = date_in_local_timezone(d['timestamp'])
         month, year = local_dt.month, local_dt.year
 
-        tags['year'] = year
-        tags['month'] = month
+        measurement_tags = tags.copy()
+
+        measurement_tags['year'] = year
+        measurement_tags['month'] = month
 
         dp = {
             "measurement": measurement,
-            "tags": tags,
+            "tags": measurement_tags,
             "time": _format_timestamp(d['timestamp'], IDB_FMT),
             "fields": {
                 field_name: d['value']
@@ -166,7 +167,7 @@ def write_data(data, measurement, tags, field_name, verbose):
             print(dp)
 
         data_points.append(dp)
-
+        
     requests.post('http://api:5000/influx/solar_edge/write', json=dict(data_points=data_points, verbose=True))
 
 
