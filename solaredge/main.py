@@ -36,19 +36,19 @@ class InfluxKeys:
 
 
 power_measurements_to_keys = dict(
-    Production=InfluxKeys('power_production'),
-    Consumption=InfluxKeys('power_consumption'),
-    SelfConsumption=InfluxKeys('power_self_consumption'),
-    FeedIn=InfluxKeys('power_feedin'),
-    Purchased=InfluxKeys('power_import'),
+    Production=InfluxKeys('power_production'),  # AC production power meter / inverter production AC power (fallback)
+    Consumption=InfluxKeys('power_consumption'),  # Consumption meter
+    SelfConsumption=InfluxKeys('power_self_consumption'),  # virtual self-consumption (calculated)
+    FeedIn=InfluxKeys('power_feedin'),  #  Export to GRID meter
+    Purchased=InfluxKeys('power_import'),  
 )
 
 energy_measurements_to_keys = dict(
-    Production=InfluxKeys('energy_production'),
-    Consumption=InfluxKeys('energy_consumption'),
-    SelfConsumption=InfluxKeys('energy_self_consumption'),
-    FeedIn=InfluxKeys('energy_feedin'),
-    Purchased=InfluxKeys('energy_import'),
+    Production=InfluxKeys('energy_production'),  # Production energy meter
+    Consumption=InfluxKeys('energy_consumption'),  # Consumption meter
+    SelfConsumption=InfluxKeys('energy_self_consumption'),  # Virtual self-consumption (calculated)
+    FeedIn=InfluxKeys('energy_feedin'),  # Export energy to GRID meter
+    Purchased=InfluxKeys('energy_import'),  # Import energy from GRID meter
 )
 
 
