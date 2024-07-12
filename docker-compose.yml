@@ -154,7 +154,7 @@ services:
     restart: always
     depends_on:
       - "wxfdashboardsaio_influxdb"
-    image: lux4rd0/weatherflow-collector:latest
+    image: lux4rd0/weatherflow-collector:4.0.0
     ports:
     - protocol: udp
       published: 50222
