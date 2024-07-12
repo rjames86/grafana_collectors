@@ -131,7 +131,7 @@ services:
     volumes:
     - wxfdashboardsaio-influxdb-data:/var/lib/influxdb:rw
   wxfdashboardsaio-collector:
-    container_name: wxfdashboardsaio-collector-74f3e5ca
+    container_name: wxfdashboardsaio-collector
     environment:
       TZ: America/Denver
       WEATHERFLOW_COLLECTOR_BACKEND_TYPE: "influxdb"
@@ -154,7 +154,7 @@ services:
     restart: always
     depends_on:
       - "wxfdashboardsaio_influxdb"
-    image: lux4rd0/weatherflow-collector:4.0.0
+    image: lux4rd0/weatherflow-collector:3.5.3
     ports:
     - protocol: udp
       published: 50222
