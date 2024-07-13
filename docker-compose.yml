@@ -162,8 +162,10 @@ services:
   weatherflow-collector-v2:
     container_name: weatherflow-collector-v2
     env_file:
-      - weatherflow_collector_v2.env
-      - weatherflow_collector_v2.dev
+      - path: weatherflow_collector_v2.env
+        required: true
+      - path: weatherflow_collector_v2.dev
+        required: false
     image: lux4rd0/weatherflow-collector:latest
     restart: always
     depends_on:
