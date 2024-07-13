@@ -159,6 +159,15 @@ services:
     - protocol: udp
       published: 50222
       target: 50222
+  weatherflow-collector-v2:
+    container_name: weatherflow-collector-v2
+    env_file:
+      - weatherflow_collector_v2.env
+      - weatherflow_collector_v2.dev
+    image: lux4rd0/weatherflow-collector:latest
+    restart: always
+    depends_on:
+      - influxdb2
   pihole-influxdb:
     image: avojak/pihole-influxdb:latest
     container_name: pihole-influxdb
