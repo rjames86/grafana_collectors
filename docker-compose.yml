@@ -192,6 +192,7 @@ services:
       - influxdbv2:/var/lib/influxdb2:rw
     ports:
       - "8087:8086"
+    restart: always
 volumes:
   wxfdashboardsaio-grafana-data:
   wxfdashboardsaio-influxdb-data:
