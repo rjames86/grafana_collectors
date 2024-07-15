@@ -7,3 +7,4 @@ __pycache__
 apiKey
 weatherflow_collector_v2.env
 weatherflow_collector_v2.dev
+.DS_Store
