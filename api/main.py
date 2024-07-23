@@ -43,9 +43,11 @@ def get_curent_data():
     influx_client.switch_database("solar_edge")
     latest_power_query = f'SELECT last("value") FROM "sensor__power_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
     total_energy_query = f'SELECT sum("value") FROM "sensor__energy_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
+    total_energy_consumption_query = f'SELECT sum("value") FROM "sensor__energy_consumption" WHERE time >= {start_of_day_ms}ms and time <= now()'
 
     latest_power_results = list(influx_client.query(latest_power_query).get_points())[0]
     total_energy_results = list(influx_client.query(total_energy_query).get_points())[0]
+    total_energy_consumption_results = list(influx_client.query(total_energy_consumption_query).get_points())[0]
 
     last_update = datetime.fromisoformat(latest_power_results["time"])
 
@@ -55,10 +57,14 @@ def get_curent_data():
     energy_watts = total_energy_results["sum"]
     energy_kwh = f"{energy_watts/1000:.2f}"
 
+    consumption_watts = total_energy_consumption_results["sum"]
+    consumption_kwh = f"{consumption_watts/1000:.2f}"
+
     return jsonify(
         dict(
             power=power_kw,
             energy=energy_kwh,
+            consumption=consumption_kwh,
             last_updated=last_update.astimezone(tz=tz).isoformat(),
         )
     )
