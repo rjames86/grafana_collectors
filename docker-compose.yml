@@ -166,7 +166,6 @@ services:
     - protocol: udp
       published: 50222
       target: 50222
-      host_ip: "0.0.0.0"
   wxfdashboardsaio-collector:
     container_name: wxfdashboardsaio-collector
     environment:
@@ -192,11 +191,11 @@ services:
     depends_on:
       - "wxfdashboardsaio_influxdb"
     image: lux4rd0/weatherflow-collector:3.5.3
-    ports:
-    - protocol: udp
-      published: 50222
-      target: 50222
-      host_ip: "127.0.0.1"
+    # ports:
+    # - protocol: udp
+    #   published: 50222
+    #   target: 50222
+    #   host_ip: "127.0.0.1"
 volumes:
   wxfdashboardsaio-grafana-data:
   wxfdashboardsaio-influxdb-data:
