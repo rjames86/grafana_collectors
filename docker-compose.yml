@@ -1,5 +1,3 @@
-version: '3.3'
-
 services:
   api:
     container_name: api
@@ -130,6 +128,40 @@ services:
     restart: always
     volumes:
     - wxfdashboardsaio-influxdb-data:/var/lib/influxdb:rw
+  influxdb2:
+    image: influxdb:latest
+    volumes:
+      # Mount for influxdb data directory and configuration
+      - influxdbv2:/var/lib/influxdb2:rw
+    env_file:
+      - path: "weatherflow_collector_v2.env"
+        required: true
+      - path: "weatherflow_collector_v2.dev"
+        required: false
+    ports:
+      - "8087:8086"
+    healthcheck:
+      test:
+        - "CMD"
+        - "curl"
+        - "-f"
+        - "http://localhost:8086/ping"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+  weatherflow-collector-v2:
+    container_name: weatherflow-collector-v2
+    env_file:
+      - path: "weatherflow_collector_v2.dev"
+        required: false
+      - path: "weatherflow_collector_v2.env"
+        required: true
+    image: lux4rd0/weatherflow-collector:5.1.57
+    restart: always
+    depends_on:
+      - influxdb2
+      - wxfdashboardsaio_grafana
   wxfdashboardsaio-collector:
     container_name: wxfdashboardsaio-collector
     environment:
@@ -159,40 +191,6 @@ services:
     - protocol: udp
       published: 50222
       target: 50222
-  weatherflow-collector-v2:
-    container_name: weatherflow-collector-v2
-    env_file:
-      - path: "weatherflow_collector_v2.env"
-        required: true
-      - path: "weatherflow_collector_v2.dev"
-        required: false
-    image: lux4rd0/weatherflow-collector:latest
-    restart: always
-    depends_on:
-      - influxdb2
-  pihole-influxdb:
-    image: avojak/pihole-influxdb:latest
-    container_name: pihole-influxdb
-    restart: unless-stopped
-    environment:
-      PIHOLE_ALIAS: pihole
-      PIHOLE_ADDRESS: http://pi.hole
-      PIHOLE_TOKEN: "${PIHOLE_TOKEN}"
-      INFLUXDB_ADDRESS: http://influxdb2:8086
-      INFLUXDB_CREATE_BUCKET: true
-      INFLUXDB_ORG: my-org
-      INFLUXDB_TOKEN: "${INFLUXDB2_TOKEN}"
-      INFLUXDB_BUCKET: pihole
-    depends_on:
-      - influxdb2
-  influxdb2:
-    image: influxdb:2.6-alpine
-    volumes:
-      # Mount for influxdb data directory and configuration
-      - influxdbv2:/var/lib/influxdb2:rw
-    ports:
-      - "8087:8086"
-    restart: always
 volumes:
   wxfdashboardsaio-grafana-data:
   wxfdashboardsaio-influxdb-data:
