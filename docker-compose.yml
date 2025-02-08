@@ -83,7 +83,7 @@ services:
       INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
       INFLUXDB_URL: wxfdashboardsaio_influxdb
       INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
-      SENSOR_ID: "80717"
+      SENSOR_ID: "187589"
       INFLUX_DB: "purpleair"
     volumes:
     - purpleair_collector_data:/var/lib/purpleair
