@@ -8,3 +8,9 @@ apiKey
 weatherflow_collector_v2.env
 weatherflow_collector_v2.dev
 .DS_Store
+
+# Keep the data directory but ignore all its contents
+data/*
+
+# But don't ignore the data directory itself
+!data/.gitkeep
