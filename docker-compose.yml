@@ -1,15 +1,16 @@
+version: "3.8"
+
 services:
   api:
     container_name: api
     build: ./api
     depends_on:
-      - "wxfdashboardsaio_influxdb"
+      - wxfdashboardsaio_influxdb
     ports:
-    - protocol: tcp
-      published: 8080
-      target: 5000
+      - "8080:5000"
     restart: always
-    volumes: ['./api:/app']
+    volumes:
+      - ./api:/app
     entrypoint:
       - flask
       - run
@@ -20,12 +21,13 @@ services:
       WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
       WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
       WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+
   ecobee_collector:
     container_name: ecobee_collector
     build: ./ecobee_influx_connector
     depends_on:
-      - "wxfdashboardsaio_influxdb"
-      - "wxfdashboardsaio_grafana"
+      - wxfdashboardsaio_influxdb
+      - wxfdashboardsaio_grafana
     environment:
       ECOBEE_API_KEY: "${ECOBEE_API_KEY}"
       ECOBEE_WORK_DIR: "."
@@ -34,8 +36,6 @@ services:
       ECOBEE_INFLUX_BUCKET: "ecobee"
       ECOBEE_INFLUX_USER: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
       ECOBEE_INFLUX_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
-      ECOBEE_INFLUX_TOKEN: ""
-      ECOBEE_INFLUX_ORG: ""
       ECOBEE_ALWAYS_WRITE_WEATHER_AS_CURRENT: "false"
       ECOBEE_WRITE_HEAT_PUMP_1: "true"
       ECOBEE_WRITE_HEAT_PUMP_2: "true"
@@ -45,13 +45,14 @@ services:
       ECOBEE_WRITE_COOL_2: "true"
       ECOBEE_WRITE_HUMIDIFIER: "true"
     volumes:
-    - ecobee_collector_data:/var/lib/ecobee_collector
+      - ./data/ecobee_collector:/var/lib/ecobee_collector
     restart: always
+
   solaredge_connector:
     container_name: solaredge_collector
     build: ./solaredge
     depends_on:
-      - "wxfdashboardsaio_influxdb"
+      - wxfdashboardsaio_influxdb
     environment:
       WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
       WEATHERFLOW_COLLECTOR_INFLUXDB_URL: wxfdashboardsaio_influxdb
@@ -59,26 +60,28 @@ services:
       SOLAREDGE_SITE_ID: "${SOLAREDGE_SITE_ID}"
       SOLAREDGE_TOKEN: "${SOLAREDGE_TOKEN}"
     volumes:
-    - solaredge_collector_data:/var/lib/solaredge_collector
+      - ./data/solaredge_collector:/var/lib/solaredge_collector
     restart: always
+
   august_collector:
     container_name: august_collector
     build: ./august
     depends_on:
-      - "api"
-      - "wxfdashboardsaio_grafana"
+      - api
+      - wxfdashboardsaio_grafana
     environment:
       AUGUST_USERNAME: "${AUGUST_USERNAME}"
       AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
     volumes:
-    - august_collector_data:/var/lib/august_collector
+      - ./data/august_collector:/var/lib/august_collector
     restart: always
+
   purpleair_collector:
     container_name: purpleair_collector
     build: ./purpleair
     depends_on:
-      - "wxfdashboardsaio_influxdb"
-      - "wxfdashboardsaio_grafana"
+      - wxfdashboardsaio_influxdb
+      - wxfdashboardsaio_grafana
     environment:
       INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
       INFLUXDB_URL: wxfdashboardsaio_influxdb
@@ -86,8 +89,9 @@ services:
       SENSOR_ID: "187589"
       INFLUX_DB: "purpleair"
     volumes:
-    - purpleair_collector_data:/var/lib/purpleair
+      - ./data/purpleair:/var/lib/purpleair
     restart: always
+
   wxfdashboardsaio_grafana:
     container_name: wxfdashboardsaio_grafana
     build: ./grafana
@@ -95,69 +99,52 @@ services:
       GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       TZ: America/Denver
-    # image: lux4rd0/weatherflow-dashboards-grafana:latest
     ports:
-    - protocol: tcp
-      published: 3000
-      target: 3000
+      - "3000:3000"
     restart: always
     volumes:
-    - wxfdashboardsaio-grafana-data:/var/lib/grafana
+      - ./data/grafana:/var/lib/grafana
+
   wxfdashboardsaio_influxdb:
     container_name: wxfdashboardsaio_influxdb
+    image: influxdb:1.8
     environment:
       TZ: America/Denver
       INFLUXDB_ADMIN_PASSWORD: "${INFLUXDB_ADMIN_PASSWORD}"
       INFLUXDB_ADMIN_USER: admin
       INFLUXDB_DATA_ENGINE: tsm1
       INFLUXDB_DB: weatherflow
-      INFLUXDB_HTTP_LOG_ENABLED: "false"
-      INFLUXDB_LOGGING_FORMAT: json
       INFLUXDB_HTTP_FLUX_ENABLED: true
-      INFLUXDB_LOGGING_LEVEL: info
-      INFLUXDB_MONITOR_STORE_DATABASE: _internal
-      INFLUXDB_MONITOR_STORE_ENABLED: "true"
-      INFLUXDB_REPORTING_DISABLED: "true"
       INFLUXDB_USER: weatherflow
       INFLUXDB_USER_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
-    image: influxdb:1.8
     ports:
-    - protocol: tcp
-      published: 8086
-      target: 8086
+      - "8086:8086"
     restart: always
     volumes:
-    - wxfdashboardsaio-influxdb-data:/var/lib/influxdb:rw
+      - ./data/influxdb:/var/lib/influxdb:rw
+
   influxdb2:
     image: influxdb:latest
     volumes:
-      # Mount for influxdb data directory and configuration
-      - influxdbv2:/var/lib/influxdb2:rw
+      - ./data/influxdb2:/var/lib/influxdb2:rw
     env_file:
-      - path: "weatherflow_collector_v2.env"
-        required: true
-      - path: "weatherflow_collector_v2.dev"
-        required: false
+      - weatherflow_collector_v2.env
+      - weatherflow_collector_v2.dev
     ports:
       - "8087:8086"
     healthcheck:
-      test:
-        - "CMD"
-        - "curl"
-        - "-f"
-        - "http://localhost:8086/ping"
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
       interval: 10s
       timeout: 5s
       retries: 5
     restart: always
+
   weatherflow-collector-v2:
     container_name: weatherflow-collector-v2
-    env_file:
-      - path: "weatherflow_collector_v2.dev"
-        required: false
-      - path: "weatherflow_collector_v2.env"
-        required: true
     image: lux4rd0/weatherflow-collector:5.1.57
+    env_file:
+      - weatherflow_collector_v2.dev
+      - weatherflow_collector_v2.env
     restart: always
     depends_on:
       influxdb2:
@@ -165,25 +152,14 @@ services:
       wxfdashboardsaio_grafana:
         condition: service_started
     ports:
-    - protocol: udp
-      published: 50222
-      target: 50222
+      - "50222:50222/udp"
+
   wxfdashboardsaio-collector:
     container_name: wxfdashboardsaio-collector
+    image: lux4rd0/weatherflow-collector:3.5.3
     environment:
       TZ: America/Denver
       WEATHERFLOW_COLLECTOR_BACKEND_TYPE: "influxdb"
-      WEATHERFLOW_COLLECTOR_DOCKER_HEALTHCHECK_ENABLED: "true"
-      WEATHERFLOW_COLLECTOR_DEBUG: "false"
-      WEATHERFLOW_COLLECTOR_DEBUG_CURL: "false"
-      WEATHERFLOW_COLLECTOR_DISABLE_HEALTH_CHECK: "false"
-      WEATHERFLOW_COLLECTOR_DISABLE_HOST_PERFORMANCE: "false"
-      WEATHERFLOW_COLLECTOR_DISABLE_LOCAL_UDP: "false"
-      WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_FORECAST: "false"
-      WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_REST: "false"
-      WEATHERFLOW_COLLECTOR_DISABLE_REMOTE_SOCKET: "false"
-      WEATHERFLOW_COLLECTOR_HEALTHCHECK: "true"
-      WEATHERFLOW_COLLECTOR_HOST_HOSTNAME: kvothe
       WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
       WEATHERFLOW_COLLECTOR_INFLUXDB_URL: http://wxfdashboardsaio_influxdb:8086/write?db=weatherflow
       WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
@@ -191,13 +167,4 @@ services:
       WEATHERFLOW_COLLECTOR_STATION_ID: 83924
     restart: always
     depends_on:
-      - "wxfdashboardsaio_influxdb"
-    image: lux4rd0/weatherflow-collector:3.5.3
-volumes:
-  wxfdashboardsaio-grafana-data:
-  wxfdashboardsaio-influxdb-data:
-  august_collector_data:
-  ecobee_collector_data:
-  purpleair_collector_data:
-  solaredge_collector_data:
-  influxdbv2:
+      - wxfdashboardsaio_influxdb
