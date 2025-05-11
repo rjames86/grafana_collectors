@@ -14,3 +14,4 @@ data/*
 
 # But don't ignore the data directory itself
 !data/.gitkeep
+!data/mosquitto

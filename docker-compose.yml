@@ -168,3 +168,14 @@ services:
     restart: always
     depends_on:
       - wxfdashboardsaio_influxdb
+  mosquitto:
+    image: eclipse-mosquitto
+    hostname: mosquitto
+    container_name: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./data/mosquitto:/etc/mosquitto
+      - ./data/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
