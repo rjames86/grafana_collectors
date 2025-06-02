@@ -3,6 +3,8 @@ from influxdb import InfluxDBClient
 import sys
 from datetime import datetime
 import pytz
+import requests
+from os import environ
 
 from env import (
     INFLUXDB_URL,
@@ -22,7 +24,7 @@ app = Flask(__name__)
 def write_influxdb_post(database):
     data = request.get_json()
     data_points = data.get("data_points", [])
-    verbose = data.get('verbose', False)
+    verbose = data.get("verbose", False)
 
     if verbose:
         print(data_points)
@@ -47,7 +49,9 @@ def get_curent_data():
 
     latest_power_results = list(influx_client.query(latest_power_query).get_points())[0]
     total_energy_results = list(influx_client.query(total_energy_query).get_points())[0]
-    total_energy_consumption_results = list(influx_client.query(total_energy_consumption_query).get_points())[0]
+    total_energy_consumption_results = list(
+        influx_client.query(total_energy_consumption_query).get_points()
+    )[0]
 
     last_update = datetime.fromisoformat(latest_power_results["time"])
 
@@ -68,6 +72,25 @@ def get_curent_data():
             last_updated=last_update.astimezone(tz=tz).isoformat(),
         )
     )
+
+
+@app.route("/pushover/sprinkler/message", methods=["POST"])
+def send_pushover_message():
+    data = request.get_json()
+    message = data.get("message", "")
+    title = data.get("title", "Alert")
+
+    user_token = environ.get("PUSHOVER_USER")
+    app_token = environ.get("PUSHOVER_SPRINKLER_TOKEN")
+
+    resp = requests.post(
+        "https://api.pushover.net/1/messages.json",
+        data={"token": app_token, "user": user_token, "message": message, "title": title},
+        headers={"Content-Type": "application/x-www-form-urlencoded"},
+    )
+    if resp.status_code != 200:
+        return jsonify(dict(success=False, message=f"Failed to send message: {resp.text}", status_code=resp.status_code)), 500
+    return jsonify(dict(success=True, message="Message sent successfully"))
 
 
 def write_influxdb(database, data_points):

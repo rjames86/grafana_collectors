@@ -2,6 +2,7 @@ from paho.mqtt import client as mqtt_client
 import logging
 import time
 import os
+import requests
 
 # Configure logging
 logging.basicConfig(
@@ -64,6 +65,10 @@ def on_disconnect(client, userdata, flags, rc, properties=None):
 def subscribe(client: mqtt_client):
     def on_message(client, userdata, msg, properties=None):
         logging.info(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
+        requests.post('http://api:5000/pushover/sprinkler/message', json=dict(
+            message=f"Received `{msg.payload.decode()}` from `{msg.topic}` topic",
+            title="OpenSprinkler MQTT Notification"
+        ))
 
     client.subscribe(topic)
     client.on_message = on_message
