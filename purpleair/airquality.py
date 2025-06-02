@@ -7,7 +7,7 @@ import sys
 import datetime
 from influxdb import InfluxDBClient
 
-API_KEY_PATH = "./apiKey"
+API_KEY_PATH = "/var/lib/purpleair/apiKey"
 URL_TEMPLATE = "https://api.purpleair.com/v1/sensors/{sensor_id}?api_key={api_key}&fields=name%2Cpm1.0_atm%2Cpm2.5_atm%2Cpm10.0_atm"
 TEST_JSON = None
 
