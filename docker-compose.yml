@@ -177,3 +177,16 @@ services:
     volumes:
       - ./data/mosquitto:/etc/mosquitto
       - ./data/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+  mqtt_client:
+    container_name: mqtt_client
+    build: ./mqtt_client
+    restart: always
+    depends_on:
+      - mosquitto
+    entrypoint:
+      - python
+      - main.py
+    environment:
+      MQTT_USERNAME: "${MQTT_USERNAME}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD}"
+      MQTT_BROKER: "mosquitto"

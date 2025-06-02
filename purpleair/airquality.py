@@ -17,7 +17,7 @@ def average_round_pm(sensors, value_name):
     return round(total / count, 2) if count > 0 else 0
 
 def create_influx_pm_measurements(results):
-    time = datetime.datetime.utcfromtimestamp(results['data_time_stamp'])
+    time = datetime.datetime.fromtimestamp(results['data_time_stamp'], tz=datetime.timezone.utc)
     sensor = results['sensor']
     base_measurement = {
         "measurement": "airquality",
