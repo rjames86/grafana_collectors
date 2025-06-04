@@ -20,6 +20,11 @@ influx_client = InfluxDBClient(
 app = Flask(__name__)
 
 
+@app.route("/health", methods=["GET"])
+def health_check():
+    """Health check endpoint to verify if the API is running."""
+    return jsonify(dict(status="ok", message="API is running")), 200
+
 @app.route("/influx/<database>/write", methods=["POST"])
 def write_influxdb_post(database):
     data = request.get_json()

@@ -21,6 +21,11 @@ services:
       WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
       PUSHOVER_USER: "${PUSHOVER_USER}"
       PUSHOVER_SPRINKLER_TOKEN: "${PUSHOVER_SPRINKLER_TOKEN}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   ecobee_collector:
     container_name: ecobee_collector
@@ -185,6 +190,7 @@ services:
     restart: always
     depends_on:
       - mosquitto
+      - api
     entrypoint:
       - python
       - main.py
