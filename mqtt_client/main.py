@@ -2,7 +2,11 @@ from paho.mqtt import client as mqtt_client
 import logging
 import time
 import os
+from paho.mqtt.client import MQTTMessage
+import json
 import requests
+
+from messages import get_all_topics_and_message_fns, on_station_message
 
 # Configure logging
 logging.basicConfig(
@@ -32,7 +36,7 @@ def connect_mqtt() -> mqtt_client:
 
     # Specify callback_api_version for Paho MQTT 2.0 compatibility
     client = mqtt_client.Client(client_id=client_id, callback_api_version=mqtt_client.CallbackAPIVersion.VERSION2)
-    logging.info(f"{username} {password} {client_id}")
+    logging.info(f"{client_id}")
     client.username_pw_set(username, password)
     client.on_connect = on_connect
     client.connect(broker, port)
@@ -62,16 +66,13 @@ def on_disconnect(client, userdata, flags, rc, properties=None):
     logging.info("Reconnect failed after %s attempts. Exiting...", reconnect_count)
 
 
-def subscribe(client: mqtt_client):
-    def on_message(client, userdata, msg, properties=None):
-        logging.info(f"Received `{msg.payload.decode()}` from `{msg.topic}` topic")
-        requests.post('http://api:5000/pushover/sprinkler/message', json=dict(
-            message=f"Received `{msg.payload.decode()}` from `{msg.topic}` topic",
-            title="OpenSprinkler MQTT Notification"
-        ))
-
-    client.subscribe(topic)
-    client.on_message = on_message
+def subscribe(client: mqtt_client):    
+    topics_and_message_fns = get_all_topics_and_message_fns()
+    
+    for topic, message_fn in topics_and_message_fns:
+        logging.info(f"Subscribing to topic: {topic}")
+        client.message_callback_add(topic, message_fn)
+        client.subscribe(topic)
 
 
 def run():
