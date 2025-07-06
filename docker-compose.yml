@@ -1,43 +1,4 @@
 services:
-  # Add Traefik as the first service
-  traefik:
-    image: traefik:v3.0
-    container_name: traefik
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"  # Traefik dashboard
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./data/traefik:/etc/traefik
-    networks:
-      - default
-    command:
-      # Enable Docker provider
-      - --providers.docker=true
-      - --providers.docker.exposedbydefault=false
-      
-      # Configure entrypoints
-      - --entrypoints.web.address=:80
-      - --entrypoints.websecure.address=:443
-      
-      # Enable dashboard
-      - --api.dashboard=true
-      - --api.insecure=true
-      
-      # Enable file provider for static configs
-      - --providers.file.filename=/etc/traefik/dynamic.yml
-      - --providers.file.watch=true
-      
-      # Logging
-      - --log.level=INFO
-      - --accesslog=true
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.local`)"
-      - "traefik.http.routers.dashboard.entrypoints=web"
-
   api:
     container_name: api
     build: ./api
@@ -65,12 +26,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # Add Traefik labels for API routing
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.api.rule=Host(`api.local`)"
-      - "traefik.http.routers.api.entrypoints=web"
-      - "traefik.http.services.api.loadbalancer.server.port=5000"
 
   ecobee_collector:
     container_name: ecobee_collector
@@ -154,12 +109,6 @@ services:
     restart: always
     volumes:
       - ./data/grafana:/var/lib/grafana
-    # Add Traefik labels for Grafana routing
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.grafana.rule=Host(`grafana.local`)"
-      - "traefik.http.routers.grafana.entrypoints=web"
-      - "traefik.http.services.grafana.loadbalancer.server.port=3000"
 
   wxfdashboardsaio_influxdb:
     container_name: wxfdashboardsaio_influxdb
@@ -249,3 +198,14 @@ services:
       MQTT_USERNAME: "${MQTT_USERNAME}"
       MQTT_PASSWORD: "${MQTT_PASSWORD}"
       MQTT_BROKER: "mosquitto"
+  traefik:
+    image: traefik:v3.4
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+      - "8080:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
