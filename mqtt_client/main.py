@@ -2,11 +2,8 @@ from paho.mqtt import client as mqtt_client
 import logging
 import time
 import os
-from paho.mqtt.client import MQTTMessage
-import json
-import requests
 
-from messages import get_all_topics_and_message_fns, on_station_message
+from messages import get_all_topics_and_message_fns
 
 # Configure logging
 logging.basicConfig(
@@ -21,10 +18,14 @@ logging.basicConfig(
 broker = os.getenv('MQTT_BROKER')
 port = 1883
 topic = "opensprinkler/#"
-# Generate a Client ID with the subscribe prefix.
 client_id = f'subscribe-kvothe'
 username = os.getenv('MQTT_USERNAME', 'public')
 password = os.getenv('MQTT_PASSWORD', 'public')
+
+FIRST_RECONNECT_DELAY = 1
+RECONNECT_RATE = 2
+MAX_RECONNECT_COUNT = 12
+MAX_RECONNECT_DELAY = 60
 
 
 def connect_mqtt() -> mqtt_client:
@@ -41,12 +42,6 @@ def connect_mqtt() -> mqtt_client:
     client.on_connect = on_connect
     client.connect(broker, port)
     return client
-
-
-FIRST_RECONNECT_DELAY = 1
-RECONNECT_RATE = 2
-MAX_RECONNECT_COUNT = 12
-MAX_RECONNECT_DELAY = 60
 
 def on_disconnect(client, userdata, flags, rc, properties=None):
     logging.info("Disconnected with result code: %s", rc)
