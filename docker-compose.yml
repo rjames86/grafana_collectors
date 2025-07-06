@@ -35,7 +35,7 @@ services:
       - wxfdashboardsaio_grafana
     environment:
       ECOBEE_API_KEY: "${ECOBEE_API_KEY}"
-      ECOBEE_WORK_DIR: "."
+      ECOBEE_WORK_DIR: "/var/lib/ecobee_collector"
       ECOBEE_THERMOSTAT_ID: "${ECOBEE_THERMOSTAT_ID}"
       ECOBEE_INFLUX_SERVER: "http://wxfdashboardsaio_influxdb:8086"
       ECOBEE_INFLUX_BUCKET: "ecobee"
