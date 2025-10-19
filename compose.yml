@@ -1,0 +1,205 @@
+services:
+  # Core Infrastructure Services
+  influxdb:
+    container_name: influxdb
+    image: influxdb:1.8
+    environment:
+      TZ: America/Denver
+      INFLUXDB_ADMIN_PASSWORD: "${INFLUXDB_ADMIN_PASSWORD}"
+      INFLUXDB_ADMIN_USER: admin
+      INFLUXDB_DATA_ENGINE: tsm1
+      INFLUXDB_DB: weatherflow
+      INFLUXDB_HTTP_FLUX_ENABLED: true
+      INFLUXDB_USER: weatherflow
+      INFLUXDB_USER_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+    ports:
+      - "8086:8086"
+    restart: always
+    volumes:
+      - ./data/influxdb:/var/lib/influxdb:rw
+
+  influxdb2:
+    container_name: influxdb2
+    image: influxdb:latest
+    volumes:
+      - ./data/influxdb2:/var/lib/influxdb2:rw
+    env_file:
+      - weatherflow_collector_v2.env
+      - weatherflow_collector_v2.dev
+    ports:
+      - "8087:8086"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8086/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: always
+
+  grafana:
+    container_name: grafana
+    build: ./grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Editor
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      TZ: America/Denver
+    ports:
+      - "3000:3000"
+    restart: always
+    volumes:
+      - ./data/grafana:/var/lib/grafana
+
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto
+    hostname: mosquitto
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./data/mosquitto:/etc/mosquitto
+      - ./data/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+
+  # Data Collection Services
+  api:
+    container_name: api
+    build: ./api
+    depends_on:
+      - influxdb
+    ports:
+      - "8080:5000"
+    restart: always
+    volumes:
+      - ./api:/app
+    entrypoint:
+      - flask
+      - run
+      - --host=0.0.0.0
+    environment:
+      FLASK_DEBUG: 1
+      FLASK_APP: ./main.py
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: influxdb
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      PUSHOVER_USER: "${PUSHOVER_USER}"
+      PUSHOVER_SPRINKLER_TOKEN: "${PUSHOVER_SPRINKLER_TOKEN}"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  ecobee-collector:
+    container_name: ecobee-collector
+    build: ./ecobee_influx_connector
+    depends_on:
+      - influxdb
+      - grafana
+    environment:
+      ECOBEE_API_KEY: "${ECOBEE_API_KEY}"
+      ECOBEE_WORK_DIR: "/var/lib/ecobee_collector"
+      ECOBEE_THERMOSTAT_ID: "${ECOBEE_THERMOSTAT_ID}"
+      ECOBEE_INFLUX_SERVER: "http://influxdb:8086"
+      ECOBEE_INFLUX_BUCKET: "ecobee"
+      ECOBEE_INFLUX_USER: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      ECOBEE_INFLUX_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      ECOBEE_ALWAYS_WRITE_WEATHER_AS_CURRENT: "false"
+      ECOBEE_WRITE_HEAT_PUMP_1: "true"
+      ECOBEE_WRITE_HEAT_PUMP_2: "true"
+      ECOBEE_WRITE_AUX_HEAT_1: "true"
+      ECOBEE_WRITE_AUX_HEAT_2: "true"
+      ECOBEE_WRITE_COOL_1: "true"
+      ECOBEE_WRITE_COOL_2: "true"
+      ECOBEE_WRITE_HUMIDIFIER: "true"
+    volumes:
+      - ./data/ecobee_collector:/var/lib/ecobee_collector
+    restart: always
+
+  solaredge-collector:
+    container_name: solaredge-collector
+    build: ./solaredge
+    depends_on:
+      - influxdb
+    environment:
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: influxdb
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      SOLAREDGE_SITE_ID: "${SOLAREDGE_SITE_ID}"
+      SOLAREDGE_TOKEN: "${SOLAREDGE_TOKEN}"
+    volumes:
+      - ./data/solaredge_collector:/var/lib/solaredge_collector
+    restart: always
+
+  august-collector:
+    container_name: august-collector
+    build: ./august
+    depends_on:
+      - api
+      - grafana
+    environment:
+      AUGUST_USERNAME: "${AUGUST_USERNAME}"
+      AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
+    volumes:
+      - ./data/august_collector:/var/lib/august_collector
+    restart: always
+
+  purpleair-collector:
+    container_name: purpleair-collector
+    build: ./purpleair
+    depends_on:
+      - influxdb
+      - grafana
+    environment:
+      INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      INFLUXDB_URL: influxdb
+      INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      SENSOR_ID: "187589"
+      INFLUX_DB: "purpleair"
+    volumes:
+      - ./data/purpleair:/var/lib/purpleair
+    restart: always
+
+  weatherflow-collector-v2:
+    container_name: weatherflow-collector-v2
+    image: lux4rd0/weatherflow-collector:5.1.57
+    env_file:
+      - weatherflow_collector_v2.dev
+      - weatherflow_collector_v2.env
+    restart: always
+    depends_on:
+      influxdb2:
+        condition: service_healthy
+      grafana:
+        condition: service_started
+    ports:
+      - "50222:50222/udp"
+
+  weatherflow-collector-v1:
+    container_name: weatherflow-collector-v1
+    image: lux4rd0/weatherflow-collector:3.5.3
+    environment:
+      TZ: America/Denver
+      WEATHERFLOW_COLLECTOR_BACKEND_TYPE: "influxdb"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: http://influxdb:8086/write?db=weatherflow
+      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+      WEATHERFLOW_COLLECTOR_TOKEN: "${WEATHERFLOW_COLLECTOR_TOKEN}"
+      WEATHERFLOW_COLLECTOR_STATION_ID: 83924
+    restart: always
+    depends_on:
+      - influxdb
+
+  mqtt-client:
+    container_name: mqtt-client
+    build: ./mqtt_client
+    restart: always
+    depends_on:
+      - mosquitto
+      - api
+    entrypoint:
+      - python
+      - main.py
+    environment:
+      MQTT_USERNAME: "${MQTT_USERNAME}"
+      MQTT_PASSWORD: "${MQTT_PASSWORD}"
+      MQTT_BROKER: "mosquitto"
