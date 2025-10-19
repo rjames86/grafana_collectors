@@ -130,18 +130,18 @@ services:
       - ./data/solaredge_collector:/var/lib/solaredge_collector
     restart: always
 
-  august-collector:
-    container_name: august-collector
-    build: ./august
-    depends_on:
-      - api
-      - grafana
-    environment:
-      AUGUST_USERNAME: "${AUGUST_USERNAME}"
-      AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
-    volumes:
-      - ./data/august_collector:/var/lib/august_collector
-    restart: always
+  # august-collector:
+  #   container_name: august-collector
+  #   build: ./august
+  #   depends_on:
+  #     - api
+  #     - grafana
+  #   environment:
+  #     AUGUST_USERNAME: "${AUGUST_USERNAME}"
+  #     AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
+  #   volumes:
+  #     - ./data/august_collector:/var/lib/august_collector
+  #   restart: always
 
   purpleair-collector:
     container_name: purpleair-collector
