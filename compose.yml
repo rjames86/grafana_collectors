@@ -174,20 +174,20 @@ services:
     ports:
       - "50222:50222/udp"
 
-  weatherflow-collector-v1:
-    container_name: weatherflow-collector-v1
-    image: lux4rd0/weatherflow-collector:3.5.3
-    environment:
-      TZ: America/Denver
-      WEATHERFLOW_COLLECTOR_BACKEND_TYPE: "influxdb"
-      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
-      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: http://influxdb:8086/write?db=weatherflow
-      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
-      WEATHERFLOW_COLLECTOR_TOKEN: "${WEATHERFLOW_COLLECTOR_TOKEN}"
-      WEATHERFLOW_COLLECTOR_STATION_ID: 83924
-    restart: always
-    depends_on:
-      - influxdb
+  # weatherflow-collector-v1:
+  #   container_name: weatherflow-collector-v1
+  #   image: lux4rd0/weatherflow-collector:3.5.3
+  #   environment:
+  #     TZ: America/Denver
+  #     WEATHERFLOW_COLLECTOR_BACKEND_TYPE: "influxdb"
+  #     WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
+  #     WEATHERFLOW_COLLECTOR_INFLUXDB_URL: http://influxdb:8086/write?db=weatherflow
+  #     WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
+  #     WEATHERFLOW_COLLECTOR_TOKEN: "${WEATHERFLOW_COLLECTOR_TOKEN}"
+  #     WEATHERFLOW_COLLECTOR_STATION_ID: 83924
+  #   restart: always
+  #   depends_on:
+  #     - influxdb
 
   mqtt-client:
     container_name: mqtt-client
