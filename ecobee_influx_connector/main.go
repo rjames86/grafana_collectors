@@ -202,10 +202,21 @@ func main() {
 						cool2RunSec := t.ExtendedRuntime.Cool2[i]
 						fanRunSec := t.ExtendedRuntime.Fan[i]
 						humidifierRunSec := t.ExtendedRuntime.Humidifier[i]
+
 						currentComfortSetting := t.Program.CurrentClimateRef
+						currentComfortSettingName := ""
+						for _, climate := range t.Program.Climates {
+							if climate.ClimateRef == currentComfortSetting {
+								currentComfortSettingName = climate.Name
+								break
+							}
+						}
+						if currentComfortSettingName == "" {
+							currentComfortSettingName = currentComfortSetting // fallback to ref if name not found
+						}
 
 						fmt.Printf("Thermostat conditions at %s:\n", reportTime)
-						fmt.Printf("\tcurrent climate setting: %s\n", currentComfortSetting)
+						fmt.Printf("\tcurrent climate setting: %s\n", currentComfortSettingName)
 						fmt.Printf("\tcurrent temperature: %.1f degF\n\theat set point: %.1f degF\n\tcool set point: %.1f degF\n\tdemand management offset: %.1f\n",
 							currentTemp, heatSetPoint, coolSetPoint, demandMgmtOffset)
 						fmt.Printf("\tcurrent humidity: %d%%\n\thumidity set point: %d\n\tHVAC mode: %s\n",
@@ -231,7 +242,7 @@ func main() {
 									"cool_set_point":     coolSetPoint,
 									"demand_mgmt_offset": demandMgmtOffset,
 									"fan_run_time":       fanRunSec,
-									"comfort_setting":    currentComfortSetting,
+									"comfort_setting":    currentComfortSettingName,
 								}
 								if config.WriteHumidifier {
 									fields["humidity_set_point"] = humiditySetPoint
