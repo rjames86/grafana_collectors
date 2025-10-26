@@ -238,25 +238,31 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.WriteAPIBlocking, config Config, thermostatId string, comfortSettings map[string]string) error {
 	const influxTimeout = 3 * time.Second
 
-	// Find column indices
-	columnMap := make(map[string]int)
-	for i, col := range report.ColumnList {
-		columnMap[col] = i
+	// Runtime reports have fixed format: date, time, then requested columns in order
+	// We requested: "zoneAveTemp,zoneCoolTemp,zoneHeatTemp,fan,hvacMode,zoneCalendarEvent"
+	columnMap := map[string]int{
+		"date":               0, // Always first
+		"time":               1, // Always second
+		"zoneAveTemp":        2,
+		"zoneCoolTemp":       3,
+		"zoneHeatTemp":       4,
+		"fan":                5,
+		"hvacMode":           6,
+		"zoneCalendarEvent":  7,
 	}
 
 	// Process each row (5-minute interval)
 	for _, row := range report.RowList {
 		fields := strings.Split(row, ",")
-		if len(fields) != len(report.ColumnList) {
-			log.Printf("Warning: Row has %d fields but expected %d columns", len(fields), len(report.ColumnList))
-			continue
+		if len(fields) < 8 {
+			continue // Skip malformed rows
 		}
 
-		// Parse timestamp (first field)
-		reportTime, err := time.Parse("2006-01-02 15:04:05", fields[0])
+		// Parse timestamp from date and time fields
+		dateTimeStr := fields[0] + " " + fields[1]
+		reportTime, err := time.Parse("2006-01-02 15:04:05", dateTimeStr)
 		if err != nil {
-			log.Printf("Warning: Failed to parse timestamp %s: %v", fields[0], err)
-			continue
+			continue // Skip rows with invalid timestamps
 		}
 
 		// Helper function to get float value from column
