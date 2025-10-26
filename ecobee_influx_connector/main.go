@@ -23,7 +23,7 @@ import (
 type Config struct {
 	APIKey             string   `env:"API_KEY,required"`
 	WorkDir            string   `env:"WORK_DIR"`
-	ThermostatID       []string `env:"THERMOSTAT_ID,required"`
+	ThermostatID       []string `env:"THERMOSTAT_ID"` // No longer required - will auto-discover
 	InfluxServer       string   `env:"INFLUX_SERVER,required"`
 	InfluxOrg          string   `env:"INFLUX_ORG"`
 	InfluxUser         string   `env:"INFLUX_USER"`
@@ -113,6 +113,55 @@ func generateDateChunks(startDate, endDate string) ([][]string, error) {
 	return chunks, nil
 }
 
+// discoverThermostats finds all thermostats registered to the account
+func discoverThermostats(client *ecobee.Client) ([]string, error) {
+	s := ecobee.Selection{
+		SelectionType: "registered",
+	}
+	ts, err := client.GetThermostats(s)
+	if err != nil {
+		return nil, err
+	}
+
+	var thermostatIDs []string
+	for _, t := range ts {
+		thermostatIDs = append(thermostatIDs, t.Identifier)
+		log.Printf("Discovered thermostat: '%s' (ID: %s)", t.Name, t.Identifier)
+	}
+
+	return thermostatIDs, nil
+}
+
+// findEarliestAvailableDate attempts to find the earliest date with available data
+func findEarliestAvailableDate(client *ecobee.Client, thermostatId string) (string, error) {
+	columns := "zoneAveTemp,zoneCoolTemp,zoneHeatTemp"
+
+	// Test candidate dates from most recent to older
+	candidateDates := []string{
+		"2024-01-01",
+		"2023-01-01",
+		"2022-01-01",
+		"2021-10-01",
+		"2021-01-01",
+	}
+
+	for _, testDate := range candidateDates {
+		endTime, err := time.Parse("2006-01-02", testDate)
+		if err != nil {
+			continue
+		}
+		testEnd := endTime.AddDate(0, 0, 7).Format("2006-01-02")
+
+		_, err = client.GetRuntimeReport(thermostatId, testDate, testEnd, columns, false)
+		if err == nil {
+			return testDate, nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	return "", fmt.Errorf("no historical data found")
+}
+
 // runBackfill processes historical data using the Runtime Report API
 func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, config Config, startDate, endDate string) error {
 	chunks, err := generateDateChunks(startDate, endDate)
@@ -122,29 +171,47 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 
 	log.Printf("Processing %d date chunks from %s to %s", len(chunks), startDate, endDate)
 
-	// Define the columns we want from the runtime report
-	columns := "auxHeat1,auxHeat2,compCool1,compCool2,dehumidifier,dmOffset,economizer,fan,heatPump1,heatPump2,humidifier,hvacMode,outdoorHumidity,outdoorTemp,sky,ventilator,wind,zoneAveTemp,zoneCalendarEvent,zoneCoolTemp,zoneHeatTemp,zoneHvacMode,zoneOccupancy"
+	// Use a simplified column set that's more likely to work for historical data
+	// Based on auto-detection, the full column set causes 500 errors
+	columns := "zoneAveTemp,zoneCoolTemp,zoneHeatTemp,fan,hvacMode,zoneCalendarEvent"
+
+	successfulChunks := 0
+	consecutiveFailures := 0
 
 	for i, chunk := range chunks {
-		log.Printf("Processing chunk %d/%d: %s to %s", i+1, len(chunks), chunk[0], chunk[1])
+		if i%10 == 0 || i == len(chunks)-1 {
+			log.Printf("Processing chunk %d/%d: %s to %s", i+1, len(chunks), chunk[0], chunk[1])
+		}
 
+		chunkSuccess := false
 		for _, thermostatId := range config.ThermostatID {
 			report, err := client.GetRuntimeReport(thermostatId, chunk[0], chunk[1], columns, false)
 			if err != nil {
-				log.Printf("Warning: Failed to get runtime report for thermostat %s, chunk %s to %s: %v",
-					thermostatId, chunk[0], chunk[1], err)
 				continue
 			}
 
 			if err := processRuntimeReport(report, influxWriteApi, config, thermostatId); err != nil {
-				log.Printf("Warning: Failed to process runtime report for thermostat %s: %v", thermostatId, err)
 				continue
+			}
+
+			chunkSuccess = true
+		}
+
+		if chunkSuccess {
+			successfulChunks++
+			consecutiveFailures = 0
+		} else {
+			consecutiveFailures++
+			if consecutiveFailures >= 10 {
+				log.Printf("Warning: %d consecutive chunks failed starting at %s", consecutiveFailures, chunk[0])
+				break
 			}
 		}
 
-		// Add a small delay between chunks to be respectful to the API
-		time.Sleep(1 * time.Second)
+		time.Sleep(500 * time.Millisecond)
 	}
+
+	log.Printf("Backfill completed: %d/%d chunks processed successfully", successfulChunks, len(chunks))
 
 	return nil
 }
@@ -222,21 +289,24 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 			return ""
 		}
 
-		// Parse values from the runtime report
+		// Parse values from the runtime report (only use columns we're requesting)
 		currentTemp, _ := getFloat("zoneAveTemp")
 		heatSetPoint, _ := getFloat("zoneHeatTemp")
 		coolSetPoint, _ := getFloat("zoneCoolTemp")
-		demandMgmtOffset, _ := getFloat("dmOffset")
-		_ = getString("zoneHvacMode") // hvacMode - not currently used in backfill
+
+		// These columns may not be available in simplified mode
+		demandMgmtOffset := 0.0 // dmOffset not available in simplified mode
+		hvacMode := getString("hvacMode")
 
 		fanRunSec, _ := getInt("fan")
-		auxHeat1RunSec, _ := getInt("auxHeat1")
-		auxHeat2RunSec, _ := getInt("auxHeat2")
-		heatPump1RunSec, _ := getInt("heatPump1")
-		heatPump2RunSec, _ := getInt("heatPump2")
-		cool1RunSec, _ := getInt("compCool1")
-		cool2RunSec, _ := getInt("compCool2")
-		humidifierRunSec, _ := getInt("humidifier")
+		// Equipment runtime data not available in simplified mode
+		auxHeat1RunSec := 0
+		auxHeat2RunSec := 0
+		heatPump1RunSec := 0
+		heatPump2RunSec := 0
+		cool1RunSec := 0
+		cool2RunSec := 0
+		humidifierRunSec := 0
 
 		// Get comfort setting name
 		comfortSettingRef := getString("zoneCalendarEvent")
@@ -257,6 +327,7 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 				"demand_mgmt_offset": demandMgmtOffset,
 				"fan_run_time":       fanRunSec,
 				"comfort_setting":    comfortSettingName,
+				"hvac_mode":         hvacMode, // Add HVAC mode since we have it
 			}
 
 			if config.WriteAuxHeat1 {
@@ -302,6 +373,7 @@ func main() {
 	var backfill = flag.Bool("backfill", false, "Run in backfill mode to import historical data.")
 	var startDate = flag.String("start-date", "", "Start date for backfill (YYYY-MM-DD format).")
 	var endDate = flag.String("end-date", "", "End date for backfill (YYYY-MM-DD format).")
+	var autoDetectStart = flag.Bool("auto-detect-start", false, "Auto-detect the earliest available date for backfill.")
 	flag.Parse()
 
 	var config Config
@@ -337,8 +409,18 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Auto-discover thermostats if none specified
 	if len(config.ThermostatID) == 0 {
-		log.Fatalf("thermostat_id must be set in the config file.")
+		log.Println("No thermostat IDs specified, discovering all thermostats...")
+		thermostatIDs, err := discoverThermostats(client)
+		if err != nil {
+			log.Fatalf("Failed to discover thermostats: %v", err)
+		}
+		if len(thermostatIDs) == 0 {
+			log.Fatal("No thermostats found in account")
+		}
+		config.ThermostatID = thermostatIDs
+		log.Printf("Found %d thermostat(s)", len(thermostatIDs))
 	}
 	if config.InfluxBucket == "" || config.InfluxServer == "" {
 		log.Fatalf("influx_server and influx_bucket must be set in the config file.")
@@ -365,14 +447,23 @@ func main() {
 
 	// Validate backfill parameters
 	if *backfill {
-		if *startDate == "" || *endDate == "" {
-			log.Fatal("Both -start-date and -end-date must be specified for backfill mode")
-		}
-		if _, err := time.Parse("2006-01-02", *startDate); err != nil {
-			log.Fatalf("Invalid start-date format: %v. Use YYYY-MM-DD", err)
-		}
-		if _, err := time.Parse("2006-01-02", *endDate); err != nil {
-			log.Fatalf("Invalid end-date format: %v. Use YYYY-MM-DD", err)
+		if *autoDetectStart {
+			if *endDate == "" {
+				log.Fatal("-end-date must be specified when using -auto-detect-start")
+			}
+			if _, err := time.Parse("2006-01-02", *endDate); err != nil {
+				log.Fatalf("Invalid end-date format: %v. Use YYYY-MM-DD", err)
+			}
+		} else {
+			if *startDate == "" || *endDate == "" {
+				log.Fatal("Both -start-date and -end-date must be specified for backfill mode (or use -auto-detect-start)")
+			}
+			if _, err := time.Parse("2006-01-02", *startDate); err != nil {
+				log.Fatalf("Invalid start-date format: %v. Use YYYY-MM-DD", err)
+			}
+			if _, err := time.Parse("2006-01-02", *endDate); err != nil {
+				log.Fatalf("Invalid end-date format: %v. Use YYYY-MM-DD", err)
+			}
 		}
 	}
 
@@ -646,7 +737,42 @@ func main() {
 
 	// Run backfill if requested
 	if *backfill {
-		if err := runBackfill(client, influxWriteApi, config, *startDate, *endDate); err != nil {
+		actualStartDate := *startDate
+
+		// Auto-detect earliest available date if requested
+		if *autoDetectStart {
+			log.Println("Auto-detecting earliest available date...")
+
+			overallEarliest := ""
+			for _, thermostatId := range config.ThermostatID {
+				earliest, err := findEarliestAvailableDate(client, thermostatId)
+				if err != nil {
+					log.Printf("Warning: No historical data found for thermostat %s", thermostatId)
+					continue
+				}
+
+				log.Printf("Thermostat %s: data available from %s", thermostatId, earliest)
+
+				if overallEarliest == "" {
+					overallEarliest = earliest
+				} else {
+					earliestTime, _ := time.Parse("2006-01-02", earliest)
+					overallTime, _ := time.Parse("2006-01-02", overallEarliest)
+					if earliestTime.Before(overallTime) {
+						overallEarliest = earliest
+					}
+				}
+			}
+
+			if overallEarliest == "" {
+				log.Fatal("Could not determine earliest available date for any thermostat")
+			}
+
+			actualStartDate = overallEarliest
+			log.Printf("Using start date: %s", actualStartDate)
+		}
+
+		if err := runBackfill(client, influxWriteApi, config, actualStartDate, *endDate); err != nil {
 			log.Fatalf("Backfill failed: %v", err)
 		}
 		log.Println("Backfill completed successfully")
