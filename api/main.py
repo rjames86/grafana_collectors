@@ -2,11 +2,9 @@ from flask import Flask, request, jsonify
 from influxdb import InfluxDBClient as InfluxDBV1Client
 from influxdb_client import InfluxDBClient as InfluxDBV2Client, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
-import sys
 from datetime import datetime
 import pytz
 import requests
-from os import environ
 import logging
 
 from env import (
@@ -20,48 +18,41 @@ from env import (
     PUSHOVER_SPRINKLER_TOKEN,
 )
 
-
+# ---------------------------
+# Influx clients
+# ---------------------------
 influxV1_client = InfluxDBV1Client(
     host=INFLUXDB_V1_URL, username=INFLUXDB_V1_USER, password=INFLUXDB_V1_PASS
 )
-influxV2_client = InfluxDBV2Client(url=INFLUXDB_V2_URL, token=INFLUXDB_V2_TOKEN, org=INFLUXDB_V2_ORG)
-write_api = influxV2_client.write_api(write_options=SYNCHRONOUS)
 
+influxV2_client = InfluxDBV2Client(
+    url=INFLUXDB_V2_URL, token=INFLUXDB_V2_TOKEN, org=INFLUXDB_V2_ORG
+)
+write_api_v2 = influxV2_client.write_api(write_options=SYNCHRONOUS)
+buckets_api = influxV2_client.buckets_api()
 
+# ---------------------------
+# Flask app & logger
+# ---------------------------
 app = Flask(__name__)
-
-logger = logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-@app.route("/health", methods=["GET"])
-def health_check():
-    """Health check endpoint to verify if the API is running."""
-    return jsonify(dict(status="ok", message="API is running")), 200
+# ---------------------------
+# Helper for InfluxDB v2
+# ---------------------------
+def ensure_bucket(bucket_name: str):
+    """Ensure InfluxDB v2 bucket exists; create if missing."""
+    buckets = buckets_api.find_buckets().buckets
+    bucket = next((b for b in buckets if b.name == bucket_name), None)
+    if not bucket:
+        logger.info(f"Bucket '{bucket_name}' not found. Creating it...")
+        bucket = buckets_api.create_bucket(bucket_name=bucket_name, org=INFLUXDB_V2_ORG)
+    return bucket
 
-@app.route("/influx/<database>/write", methods=["POST"])
-def write_influxdb_post(database):
-    data = request.get_json()
-    data_points = data.get("data_points", [])
-    verbose = data.get("verbose", False)
-
-    if verbose:
-        print(data_points)
-
-    try:
-        logger.info("Attempting to write to InfluxDB v2")
-        write_influxdb_v2(database, data_points)
-    except Exception as e:
-        logger.error(f"Failed to write to InfluxDB v2: {e}")
-        pass
-
-    try:
-        write_influxdb(database, data_points)
-        return jsonify(dict(success=True, message="Successfully written"))
-    except Exception as e:
-        return jsonify(dict(success=False, message=str(e)))
-
-
-def write_influxdb_v2(bucket, data_points):
+def write_influxdb_v2(bucket_name: str, data_points: list):
+    """Write data points to InfluxDB v2, ensuring bucket exists."""
+    ensure_bucket(bucket_name)
     points = []
     for dp in data_points:
         p = Point(dp["measurement"])
@@ -73,14 +64,41 @@ def write_influxdb_v2(bucket, data_points):
             p.time(dp["time"])
         points.append(p)
 
-    logger.info(f"Org: {INFLUXDB_V2_ORG}, Bucket: {bucket}")
+    logger.info(f"Writing {len(points)} points to InfluxDB v2 bucket '{bucket_name}'")
+    write_api_v2.write(bucket=bucket_name, org=INFLUXDB_V2_ORG, record=points)
 
-    write_api.write(bucket=bucket, org=INFLUXDB_V2_ORG, record=points)
+# ---------------------------
+# Flask routes
+# ---------------------------
+@app.route("/health", methods=["GET"])
+def health_check():
+    return jsonify(dict(status="ok", message="API is running")), 200
 
+@app.route("/influx/<database>/write", methods=["POST"])
+def write_influxdb_post(database):
+    data = request.get_json()
+    data_points = data.get("data_points", [])
+    verbose = data.get("verbose", False)
 
+    if verbose:
+        logger.info(f"Data points received: {data_points}")
+
+    # InfluxDB v2
+    try:
+        logger.info("Attempting to write to InfluxDB v2")
+        write_influxdb_v2(database, data_points)
+    except Exception as e:
+        logger.error(f"Failed to write to InfluxDB v2: {e}")
+
+    # InfluxDB v1
+    try:
+        write_influxdb_v1(database, data_points)
+        return jsonify(dict(success=True, message="Successfully written"))
+    except Exception as e:
+        return jsonify(dict(success=False, message=str(e))), 500
 
 @app.route("/influx/latest_data", methods=["GET"])
-def get_curent_data():
+def get_current_data():
     tz = pytz.timezone("America/Denver")
     now = datetime.now(tz)
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
@@ -99,14 +117,9 @@ def get_curent_data():
 
     last_update = datetime.fromisoformat(latest_power_results["time"])
 
-    power_watts = latest_power_results["last"]
-    power_kw = f"{power_watts/1000:.2f}"
-
-    energy_watts = total_energy_results["sum"]
-    energy_kwh = f"{energy_watts/1000:.2f}"
-
-    consumption_watts = total_energy_consumption_results["sum"]
-    consumption_kwh = f"{consumption_watts/1000:.2f}"
+    power_kw = f"{latest_power_results['last']/1000:.2f}"
+    energy_kwh = f"{total_energy_results['sum']/1000:.2f}"
+    consumption_kwh = f"{total_energy_consumption_results['sum']/1000:.2f}"
 
     return jsonify(
         dict(
@@ -117,26 +130,36 @@ def get_curent_data():
         )
     )
 
-
 @app.route("/pushover/sprinkler/message", methods=["POST"])
 def send_pushover_message():
     data = request.get_json()
     message = data.get("message", "")
     title = data.get("title", "Alert")
 
-    user_token = PUSHOVER_USER
-    app_token = PUSHOVER_SPRINKLER_TOKEN
-
     resp = requests.post(
         "https://api.pushover.net/1/messages.json",
-        data={"token": app_token, "user": user_token, "message": message, "title": title},
+        data={
+            "token": PUSHOVER_SPRINKLER_TOKEN,
+            "user": PUSHOVER_USER,
+            "message": message,
+            "title": title,
+        },
         headers={"Content-Type": "application/x-www-form-urlencoded"},
     )
+
     if resp.status_code != 200:
         return jsonify(dict(success=False, message=f"Failed to send message: {resp.text}", status_code=resp.status_code)), 500
     return jsonify(dict(success=True, message="Message sent successfully"))
 
-
-def write_influxdb(database, data_points):
+# ---------------------------
+# InfluxDB v1 write helper
+# ---------------------------
+def write_influxdb_v1(database, data_points):
     influxV1_client.create_database(database)
     influxV1_client.write_points(data_points, database=database, batch_size=10000)
+
+# ---------------------------
+# Flask app entry point
+# ---------------------------
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000)
