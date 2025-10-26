@@ -171,8 +171,25 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 
 	log.Printf("Processing %d date chunks from %s to %s", len(chunks), startDate, endDate)
 
+	// Pre-fetch thermostat details to get comfort setting names (avoids repeated auth)
+	log.Println("Fetching thermostat details...")
+	thermostatComfortSettings := make(map[string]map[string]string)
+	for _, thermostatId := range config.ThermostatID {
+		t, err := client.GetThermostat(thermostatId)
+		if err != nil {
+			log.Printf("Warning: Failed to get details for thermostat %s: %v", thermostatId, err)
+			thermostatComfortSettings[thermostatId] = make(map[string]string)
+			continue
+		}
+
+		comfortSettings := make(map[string]string)
+		for _, climate := range t.Program.Climates {
+			comfortSettings[climate.ClimateRef] = climate.Name
+		}
+		thermostatComfortSettings[thermostatId] = comfortSettings
+	}
+
 	// Use a simplified column set that's more likely to work for historical data
-	// Based on auto-detection, the full column set causes 500 errors
 	columns := "zoneAveTemp,zoneCoolTemp,zoneHeatTemp,fan,hvacMode,zoneCalendarEvent"
 
 	successfulChunks := 0
@@ -190,7 +207,8 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 				continue
 			}
 
-			if err := processRuntimeReport(report, influxWriteApi, config, thermostatId); err != nil {
+			comfortSettings := thermostatComfortSettings[thermostatId]
+			if err := processRuntimeReport(report, influxWriteApi, config, thermostatId, comfortSettings); err != nil {
 				continue
 			}
 
@@ -217,22 +235,8 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 }
 
 // processRuntimeReport processes a runtime report and writes data to InfluxDB
-func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.WriteAPIBlocking, config Config, thermostatId string) error {
+func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.WriteAPIBlocking, config Config, thermostatId string, comfortSettings map[string]string) error {
 	const influxTimeout = 3 * time.Second
-
-	// Get thermostat details to fetch comfort setting names
-	client := ecobee.NewClient(config.APIKey, config.WorkDir)
-
-	t, err := client.GetThermostat(thermostatId)
-	if err != nil {
-		return fmt.Errorf("failed to get thermostat details: %v", err)
-	}
-
-	// Create a map for quick comfort setting lookups
-	comfortSettings := make(map[string]string)
-	for _, climate := range t.Program.Climates {
-		comfortSettings[climate.ClimateRef] = climate.Name
-	}
 
 	// Find column indices
 	columnMap := make(map[string]int)
