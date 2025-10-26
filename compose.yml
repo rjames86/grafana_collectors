@@ -63,6 +63,7 @@ services:
     build: ./api
     depends_on:
       - influxdb
+      - influxdb2
     ports:
       - 8080:5000
     restart: always
@@ -72,14 +73,15 @@ services:
       - flask
       - run
       - --host=0.0.0.0
+    env_file: .env
     environment:
       FLASK_DEBUG: 1
       FLASK_APP: ./main.py
-      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: ${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}
-      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: influxdb
-      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: ${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}
-      PUSHOVER_USER: ${PUSHOVER_USER}
-      PUSHOVER_SPRINKLER_TOKEN: ${PUSHOVER_SPRINKLER_TOKEN}
+      # WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: ${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}
+      # WEATHERFLOW_COLLECTOR_INFLUXDB_URL: influxdb
+      # WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: ${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}
+      # PUSHOVER_USER: ${PUSHOVER_USER}
+      # PUSHOVER_SPRINKLER_TOKEN: ${PUSHOVER_SPRINKLER_TOKEN}
     healthcheck:
       test:
         - CMD
@@ -121,6 +123,7 @@ services:
     build: ./solaredge
     depends_on:
       - influxdb
+      - api
     environment:
       WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: ${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}
       WEATHERFLOW_COLLECTOR_INFLUXDB_URL: influxdb
