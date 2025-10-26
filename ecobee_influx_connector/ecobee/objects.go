@@ -316,3 +316,23 @@ type WeatherForecast struct {
 	TempLow          int    `json:"tempLow"`
 	Sky              int    `json:"sky"`
 }
+
+// Runtime Report API structures
+type RuntimeReportRequest struct {
+	Selection      Selection `json:"selection"`
+	StartDate      string    `json:"startDate"`
+	EndDate        string    `json:"endDate"`
+	Columns        string    `json:"columns"`
+	IncludeSensors bool      `json:"includeSensors"`
+}
+
+type RuntimeReportResponse struct {
+	ReportList []RuntimeReport `json:"reportList"`
+	Status     Status          `json:"status"`
+}
+
+type RuntimeReport struct {
+	ThermostatIdentifier string   `json:"thermostatIdentifier"`
+	RowList              []string `json:"rowList"`
+	ColumnList           []string `json:"columnList"`
+}

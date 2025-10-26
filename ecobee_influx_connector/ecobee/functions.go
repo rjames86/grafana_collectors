@@ -28,6 +28,7 @@ import (
 
 const thermostatAPIURL = `https://api.ecobee.com/1/thermostat`
 const thermostatSummaryURL = `https://api.ecobee.com/1/thermostatSummary`
+const runtimeReportURL = `https://api.ecobee.com/1/runtimeReport`
 
 func (c *Client) UpdateThermostat(utr UpdateThermostatRequest) error {
 	j, err := json.Marshal(&utr)
@@ -171,6 +172,48 @@ func (c *Client) GetThermostatSummary(selection Selection) (map[string]Thermosta
 		tsm[rl[0]] = ts
 	}
 	return tsm, nil
+}
+
+func (c *Client) GetRuntimeReport(thermostatID, startDate, endDate, columns string, includeSensors bool) (*RuntimeReport, error) {
+	selection := Selection{
+		SelectionType:  "thermostats",
+		SelectionMatch: thermostatID,
+	}
+
+	req := RuntimeReportRequest{
+		Selection:      selection,
+		StartDate:      startDate,
+		EndDate:        endDate,
+		Columns:        columns,
+		IncludeSensors: includeSensors,
+	}
+
+	j, err := json.Marshal(&req)
+	if err != nil {
+		return nil, fmt.Errorf("error marshaling json: %v", err)
+	}
+
+	body, err := c.get(runtimeReportURL, j)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching runtime report: %v", err)
+	}
+
+	var r RuntimeReportResponse
+	if err = json.Unmarshal(body, &r); err != nil {
+		return nil, fmt.Errorf("error unmarshalling json: %v", err)
+	}
+
+	glog.V(1).Infof("GetRuntimeReport response: %#v", r)
+
+	if r.Status.Code != 0 {
+		return nil, fmt.Errorf("api error %d: %v", r.Status.Code, r.Status.Message)
+	}
+
+	if len(r.ReportList) == 0 {
+		return nil, fmt.Errorf("no runtime reports returned")
+	}
+
+	return &r.ReportList[0], nil
 }
 
 func (c *Client) get(endpoint string, rawRequest []byte) ([]byte, error) {

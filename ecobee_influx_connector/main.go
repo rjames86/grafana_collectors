@@ -9,10 +9,12 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/avast/retry-go"
 	influxdb2 "github.com/influxdata/influxdb-client-go/v2"
+	"github.com/influxdata/influxdb-client-go/v2/api"
 	"github.com/sethvargo/go-envconfig"
 
 	"ecobee_influx_connector/ecobee" // taken from https://github.com/rspier/go-ecobee and lightly customized
@@ -80,8 +82,226 @@ func IndoorHumidityRecommendation(outdoorTempF float64) int {
 	return 15
 }
 
+// generateDateChunks splits a date range into 31-day chunks for the Runtime Report API
+func generateDateChunks(startDate, endDate string) ([][]string, error) {
+	start, err := time.Parse("2006-01-02", startDate)
+	if err != nil {
+		return nil, err
+	}
+	end, err := time.Parse("2006-01-02", endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	var chunks [][]string
+	current := start
+
+	for current.Before(end) || current.Equal(end) {
+		chunkEnd := current.AddDate(0, 0, 30) // 31 days (0-30)
+		if chunkEnd.After(end) {
+			chunkEnd = end
+		}
+
+		chunks = append(chunks, []string{
+			current.Format("2006-01-02"),
+			chunkEnd.Format("2006-01-02"),
+		})
+
+		current = chunkEnd.AddDate(0, 0, 1) // Move to next day after chunk end
+	}
+
+	return chunks, nil
+}
+
+// runBackfill processes historical data using the Runtime Report API
+func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, config Config, startDate, endDate string) error {
+	chunks, err := generateDateChunks(startDate, endDate)
+	if err != nil {
+		return fmt.Errorf("failed to generate date chunks: %v", err)
+	}
+
+	log.Printf("Processing %d date chunks from %s to %s", len(chunks), startDate, endDate)
+
+	// Define the columns we want from the runtime report
+	columns := "auxHeat1,auxHeat2,compCool1,compCool2,dehumidifier,dmOffset,economizer,fan,heatPump1,heatPump2,humidifier,hvacMode,outdoorHumidity,outdoorTemp,sky,ventilator,wind,zoneAveTemp,zoneCalendarEvent,zoneCoolTemp,zoneHeatTemp,zoneHvacMode,zoneOccupancy"
+
+	for i, chunk := range chunks {
+		log.Printf("Processing chunk %d/%d: %s to %s", i+1, len(chunks), chunk[0], chunk[1])
+
+		for _, thermostatId := range config.ThermostatID {
+			report, err := client.GetRuntimeReport(thermostatId, chunk[0], chunk[1], columns, false)
+			if err != nil {
+				log.Printf("Warning: Failed to get runtime report for thermostat %s, chunk %s to %s: %v",
+					thermostatId, chunk[0], chunk[1], err)
+				continue
+			}
+
+			if err := processRuntimeReport(report, influxWriteApi, config, thermostatId); err != nil {
+				log.Printf("Warning: Failed to process runtime report for thermostat %s: %v", thermostatId, err)
+				continue
+			}
+		}
+
+		// Add a small delay between chunks to be respectful to the API
+		time.Sleep(1 * time.Second)
+	}
+
+	return nil
+}
+
+// processRuntimeReport processes a runtime report and writes data to InfluxDB
+func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.WriteAPIBlocking, config Config, thermostatId string) error {
+	const influxTimeout = 3 * time.Second
+
+	// Get thermostat details to fetch comfort setting names
+	client := ecobee.NewClient(config.APIKey, config.WorkDir)
+
+	t, err := client.GetThermostat(thermostatId)
+	if err != nil {
+		return fmt.Errorf("failed to get thermostat details: %v", err)
+	}
+
+	// Create a map for quick comfort setting lookups
+	comfortSettings := make(map[string]string)
+	for _, climate := range t.Program.Climates {
+		comfortSettings[climate.ClimateRef] = climate.Name
+	}
+
+	// Find column indices
+	columnMap := make(map[string]int)
+	for i, col := range report.ColumnList {
+		columnMap[col] = i
+	}
+
+	// Process each row (5-minute interval)
+	for _, row := range report.RowList {
+		fields := strings.Split(row, ",")
+		if len(fields) != len(report.ColumnList) {
+			log.Printf("Warning: Row has %d fields but expected %d columns", len(fields), len(report.ColumnList))
+			continue
+		}
+
+		// Parse timestamp (first field)
+		reportTime, err := time.Parse("2006-01-02 15:04:05", fields[0])
+		if err != nil {
+			log.Printf("Warning: Failed to parse timestamp %s: %v", fields[0], err)
+			continue
+		}
+
+		// Helper function to get float value from column
+		getFloat := func(colName string) (float64, error) {
+			if idx, ok := columnMap[colName]; ok && idx < len(fields) {
+				if fields[idx] == "" {
+					return 0, nil
+				}
+				val, err := strconv.ParseFloat(fields[idx], 64)
+				if err != nil {
+					return 0, err
+				}
+				return val / 10.0, nil // Ecobee stores temps in tenths
+			}
+			return 0, fmt.Errorf("column %s not found", colName)
+		}
+
+		// Helper function to get integer value from column
+		getInt := func(colName string) (int, error) {
+			if idx, ok := columnMap[colName]; ok && idx < len(fields) {
+				if fields[idx] == "" {
+					return 0, nil
+				}
+				return strconv.Atoi(fields[idx])
+			}
+			return 0, fmt.Errorf("column %s not found", colName)
+		}
+
+		// Helper function to get string value from column
+		getString := func(colName string) string {
+			if idx, ok := columnMap[colName]; ok && idx < len(fields) {
+				return fields[idx]
+			}
+			return ""
+		}
+
+		// Parse values from the runtime report
+		currentTemp, _ := getFloat("zoneAveTemp")
+		heatSetPoint, _ := getFloat("zoneHeatTemp")
+		coolSetPoint, _ := getFloat("zoneCoolTemp")
+		demandMgmtOffset, _ := getFloat("dmOffset")
+		_ = getString("zoneHvacMode") // hvacMode - not currently used in backfill
+
+		fanRunSec, _ := getInt("fan")
+		auxHeat1RunSec, _ := getInt("auxHeat1")
+		auxHeat2RunSec, _ := getInt("auxHeat2")
+		heatPump1RunSec, _ := getInt("heatPump1")
+		heatPump2RunSec, _ := getInt("heatPump2")
+		cool1RunSec, _ := getInt("compCool1")
+		cool2RunSec, _ := getInt("compCool2")
+		humidifierRunSec, _ := getInt("humidifier")
+
+		// Get comfort setting name
+		comfortSettingRef := getString("zoneCalendarEvent")
+		comfortSettingName := comfortSettings[comfortSettingRef]
+		if comfortSettingName == "" {
+			comfortSettingName = comfortSettingRef // fallback to ref
+		}
+
+		// Write to InfluxDB using the same structure as the normal collector
+		if err := retry.Do(func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), influxTimeout)
+			defer cancel()
+
+			influxFields := map[string]interface{}{
+				"temperature":        currentTemp,
+				"heat_set_point":     heatSetPoint,
+				"cool_set_point":     coolSetPoint,
+				"demand_mgmt_offset": demandMgmtOffset,
+				"fan_run_time":       fanRunSec,
+				"comfort_setting":    comfortSettingName,
+			}
+
+			if config.WriteAuxHeat1 {
+				influxFields["aux_heat_1_run_time"] = auxHeat1RunSec
+			}
+			if config.WriteAuxHeat2 {
+				influxFields["aux_heat_2_run_time"] = auxHeat2RunSec
+			}
+			if config.WriteHeatPump1 {
+				influxFields["heat_pump_1_run_time"] = heatPump1RunSec
+			}
+			if config.WriteHeatPump2 {
+				influxFields["heat_pump_2_run_time"] = heatPump2RunSec
+			}
+			if config.WriteCool1 {
+				influxFields["cool_1_run_time"] = cool1RunSec
+			}
+			if config.WriteCool2 {
+				influxFields["cool_2_run_time"] = cool2RunSec
+			}
+			if config.WriteHumidifier {
+				influxFields["humidifier_run_time"] = humidifierRunSec
+			}
+
+			point := influxdb2.NewPoint(
+				"ecobee_runtime",
+				map[string]string{thermostatNameTag: thermostatId},
+				influxFields,
+				reportTime,
+			)
+
+			return influxWriteApi.WritePoint(ctx, point)
+		}); err != nil {
+			log.Printf("Warning: Failed to write data point for %s: %v", reportTime, err)
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	var listThermostats = flag.Bool("list-thermostats", false, "List available thermostats, then exit.")
+	var backfill = flag.Bool("backfill", false, "Run in backfill mode to import historical data.")
+	var startDate = flag.String("start-date", "", "Start date for backfill (YYYY-MM-DD format).")
+	var endDate = flag.String("end-date", "", "End date for backfill (YYYY-MM-DD format).")
 	flag.Parse()
 
 	var config Config
@@ -142,7 +362,19 @@ func main() {
 		log.Fatalf("InfluxDB did not pass health check: status %s; message '%s'", health.Status, *health.Message)
 	}
 	influxWriteApi := influxClient.WriteAPIBlocking(config.InfluxOrg, config.InfluxBucket)
-	_ = influxWriteApi
+
+	// Validate backfill parameters
+	if *backfill {
+		if *startDate == "" || *endDate == "" {
+			log.Fatal("Both -start-date and -end-date must be specified for backfill mode")
+		}
+		if _, err := time.Parse("2006-01-02", *startDate); err != nil {
+			log.Fatalf("Invalid start-date format: %v. Use YYYY-MM-DD", err)
+		}
+		if _, err := time.Parse("2006-01-02", *endDate); err != nil {
+			log.Fatalf("Invalid end-date format: %v. Use YYYY-MM-DD", err)
+		}
+	}
 
 	type UpdateInterval struct {
 		LastWrittenRuntimeInterval int
@@ -412,6 +644,16 @@ func main() {
 		}
 	}
 
+	// Run backfill if requested
+	if *backfill {
+		if err := runBackfill(client, influxWriteApi, config, *startDate, *endDate); err != nil {
+			log.Fatalf("Backfill failed: %v", err)
+		}
+		log.Println("Backfill completed successfully")
+		return
+	}
+
+	// Normal operation
 	doUpdate()
 	for {
 		select {
