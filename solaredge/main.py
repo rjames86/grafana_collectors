@@ -6,6 +6,7 @@ import requests
 import secrets
 import pytz
 from collections import defaultdict
+from time import sleep
 
 from datetime import datetime, timedelta
 from solaredge import Solaredge
@@ -212,12 +213,15 @@ def main():
     solaredge_client = Solaredge(secrets.solaredge_token)
 
 
+    DEFAULT_SLEEPTIME = 2.0
+
     # For energy details
     for chunk_begin, chunk_end in chunked_date_ranges(begin, end):
         energy_details_data = pull_energy_details_data(
             solaredge_client, chunk_begin, chunk_end, args.granularity
         )
         energy_details = parse_details_data(energy_details_data, 'energyDetails')
+        sleep(DEFAULT_SLEEPTIME)
         
         for meter_type, data in energy_details.items():
             influx_data = energy_measurements_to_keys[meter_type]
@@ -232,6 +236,8 @@ def main():
     # For power details
     for chunk_begin, chunk_end in chunked_date_ranges(begin, end):
         power_details_data = pull_power_details_data(solaredge_client, chunk_begin, chunk_end)
+        sleep(DEFAULT_SLEEPTIME)
+
         power_details = parse_details_data(power_details_data, 'powerDetails')
         
         for meter_type, data in power_details.items():
