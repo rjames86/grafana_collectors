@@ -23,7 +23,7 @@ IDB_DATABASE = "solar_edge"
 IDB_TIMEZONE = pytz.utc
 IDB_FMT = '%Y-%m-%dT%H:%M:%SZ'
 
-MAX_DAYS_PER_REQUEST = 30
+MAX_DAYS_PER_REQUEST = 28
 
 
 class InfluxKeys:
