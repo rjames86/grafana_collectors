@@ -24,8 +24,6 @@ IDB_DATABASE = "solar_edge"
 IDB_TIMEZONE = pytz.utc
 IDB_FMT = '%Y-%m-%dT%H:%M:%SZ'
 
-MAX_DAYS_PER_REQUEST = 28
-
 
 class InfluxKeys:
     def __init__(self, measurement, field='value'):
@@ -53,7 +51,7 @@ energy_measurements_to_keys = dict(
     Purchased=InfluxKeys('energy_import'),  # Import energy from GRID meter
 )
 
-def chunked_date_ranges(start: datetime, end: datetime, max_days: int = MAX_DAYS_PER_REQUEST):
+def chunked_date_ranges(start: datetime, end: datetime, max_days: int = secrets.MAX_DAYS_PER_REQUEST):
     """
     Split the range from start to end into chunks of `max_days`.
     Returns a list of (chunk_start, chunk_end) tuples.

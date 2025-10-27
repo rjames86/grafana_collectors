@@ -7,3 +7,5 @@ solaredge_site_id = environ.get('SOLAREDGE_SITE_ID')
 INFLUXDB_URL = environ.get("WEATHERFLOW_COLLECTOR_INFLUXDB_URL")
 influxdb_user = environ.get("WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME")
 influxdb_pass = environ.get("WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD")
+
+MAX_DAYS_PER_REQUEST = int(environ.get("SOLAREDGE_MAX_DAYS_PER_REQUEST", "28"))
