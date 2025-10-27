@@ -23,6 +23,8 @@ IDB_DATABASE = "solar_edge"
 IDB_TIMEZONE = pytz.utc
 IDB_FMT = '%Y-%m-%dT%H:%M:%SZ'
 
+MAX_DAYS_PER_REQUEST = 30
+
 
 class InfluxKeys:
     def __init__(self, measurement, field='value'):
@@ -49,6 +51,19 @@ energy_measurements_to_keys = dict(
     FeedIn=InfluxKeys('energy_feedin'),  # Export energy to GRID meter
     Purchased=InfluxKeys('energy_import'),  # Import energy from GRID meter
 )
+
+def chunked_date_ranges(start: datetime, end: datetime, max_days: int = MAX_DAYS_PER_REQUEST):
+    """
+    Split the range from start to end into chunks of `max_days`.
+    Returns a list of (chunk_start, chunk_end) tuples.
+    """
+    chunks = []
+    current_start = start
+    while current_start < end:
+        current_end = min(current_start + timedelta(days=max_days), end)
+        chunks.append((current_start, current_end))
+        current_start = current_end
+    return chunks
 
 
 def _parse_input_timestamp(timestamp: str) -> datetime:
@@ -196,48 +211,38 @@ def main():
 
     solaredge_client = Solaredge(secrets.solaredge_token)
 
-    energy_details_data = pull_energy_details_data(
-        solaredge_client, begin, end, args.granularity)
-    # if args.verbose:
-    #     print("Raw energy details data:")
-    #     print(energy_details_data)
-    energy_details = parse_details_data(energy_details_data, 'energyDetails')
-    print("got {} energy data points".format(len(energy_details)))
 
-    # if args.verbose:
-    #     print("Parsed energy details:")
-    #     print(energy_details)
-    #     print("writing energy details")
+    # For energy details
+    for chunk_begin, chunk_end in chunked_date_ranges(begin, end):
+        energy_details_data = pull_energy_details_data(
+            solaredge_client, chunk_begin, chunk_end, args.granularity
+        )
+        energy_details = parse_details_data(energy_details_data, 'energyDetails')
+        
+        for meter_type, data in energy_details.items():
+            influx_data = energy_measurements_to_keys[meter_type]
+            write_data(
+                data,
+                influx_data.measurement,
+                influx_data.tags,
+                influx_data.field,
+                args.verbose
+            )
 
-    for meter_type, data in energy_details.items():
-        influx_data = energy_measurements_to_keys[meter_type]
-        write_data(
-            data,
-            influx_data.measurement,
-            influx_data.tags,
-            influx_data.field,
-            args.verbose)
-
-    power_details_data = pull_power_details_data(solaredge_client, begin, end)
-    # if args.verbose:
-    #     print("Raw power details data:")
-    #     print(power_details_data)
-    power_details = parse_details_data(power_details_data, 'powerDetails')
-    print("got {} power data points".format(len(power_details)))
-
-    # if args.verbose:
-    #     print("Parsed power details:")
-    #     print(power_details)
-    #     print("writing power details")
-
-    for meter_type, data in power_details.items():
-        influx_data = power_measurements_to_keys[meter_type]
-        write_data(
-            data,
-            influx_data.measurement,
-            influx_data.tags,
-            influx_data.field,
-            args.verbose)
+    # For power details
+    for chunk_begin, chunk_end in chunked_date_ranges(begin, end):
+        power_details_data = pull_power_details_data(solaredge_client, chunk_begin, chunk_end)
+        power_details = parse_details_data(power_details_data, 'powerDetails')
+        
+        for meter_type, data in power_details.items():
+            influx_data = power_measurements_to_keys[meter_type]
+            write_data(
+                data,
+                influx_data.measurement,
+                influx_data.tags,
+                influx_data.field,
+                args.verbose
+            )
 
 
 if __name__ == '__main__':
