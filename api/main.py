@@ -79,23 +79,30 @@ def write_influxdb_post(database):
     data = request.get_json()
     data_points = data.get("data_points", [])
     verbose = data.get("verbose", False)
+    use_v1_legacy = data.get("use_v1_legacy", False)  # New parameter for legacy v1 support
 
     if verbose:
         logger.info(f"Data points received: {data_points}")
 
-    # InfluxDB v2
-    try:
-        logger.info("Attempting to write to InfluxDB v2")
-        write_influxdb_v2(database, data_points)
-    except Exception as e:
-        logger.error(f"Failed to write to InfluxDB v2: {e}")
+    # Default to InfluxDB v2 (new behavior)
+    if not use_v1_legacy:
+        try:
+            logger.info(f"Writing to InfluxDB v2 bucket '{database}'")
+            write_influxdb_v2(database, data_points)
+            return jsonify(dict(success=True, message="Successfully written to InfluxDB v2", version="v2"))
+        except Exception as e:
+            logger.error(f"Failed to write to InfluxDB v2: {e}")
+            return jsonify(dict(success=False, message=f"InfluxDB v2 write failed: {str(e)}", version="v2")), 500
 
-    # InfluxDB v1
-    try:
-        write_influxdb_v1(database, data_points)
-        return jsonify(dict(success=True, message="Successfully written"))
-    except Exception as e:
-        return jsonify(dict(success=False, message=str(e))), 500
+    # Legacy InfluxDB v1 support (only when explicitly requested)
+    else:
+        try:
+            logger.info(f"Writing to InfluxDB v1 database '{database}' (legacy mode)")
+            write_influxdb_v1(database, data_points)
+            return jsonify(dict(success=True, message="Successfully written to InfluxDB v1 (legacy)", version="v1"))
+        except Exception as e:
+            logger.error(f"Failed to write to InfluxDB v1: {e}")
+            return jsonify(dict(success=False, message=f"InfluxDB v1 write failed: {str(e)}", version="v1")), 500
 
 @app.route("/influx/latest_data", methods=["GET"])
 def get_current_data():
