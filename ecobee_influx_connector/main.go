@@ -178,14 +178,16 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 
 	log.Printf("Processing %d date chunks from %s to %s", len(chunks), startDate, endDate)
 
-	// Pre-fetch thermostat details to get comfort setting names (avoids repeated auth)
+	// Pre-fetch thermostat details to get comfort setting names and thermostat names (avoids repeated auth)
 	log.Println("Fetching thermostat details...")
 	thermostatComfortSettings := make(map[string]map[string]string)
+	thermostatNames := make(map[string]string)
 	for _, thermostatId := range config.ThermostatID {
 		t, err := client.GetThermostat(thermostatId)
 		if err != nil {
 			log.Printf("Warning: Failed to get details for thermostat %s: %v", thermostatId, err)
 			thermostatComfortSettings[thermostatId] = make(map[string]string)
+			thermostatNames[thermostatId] = thermostatId // fallback to ID if name not available
 			continue
 		}
 
@@ -194,6 +196,7 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 			comfortSettings[climate.ClimateRef] = climate.Name
 		}
 		thermostatComfortSettings[thermostatId] = comfortSettings
+		thermostatNames[thermostatId] = t.Name // Store the thermostat name
 	}
 
 	// Request full equipment runtime data for backfill
@@ -215,7 +218,8 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 			}
 
 			comfortSettings := thermostatComfortSettings[thermostatId]
-			if err := processRuntimeReport(report, influxWriteApi, config, thermostatId, comfortSettings); err != nil {
+			thermostatName := thermostatNames[thermostatId]
+			if err := processRuntimeReport(report, influxWriteApi, config, thermostatName, comfortSettings); err != nil {
 				continue
 			}
 
@@ -242,7 +246,7 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 }
 
 // processRuntimeReport processes a runtime report and writes data to InfluxDB
-func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.WriteAPIBlocking, config Config, thermostatId string, comfortSettings map[string]string) error {
+func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.WriteAPIBlocking, config Config, thermostatName string, comfortSettings map[string]string) error {
 	const influxTimeout = 3 * time.Second
 
 	// Runtime reports have fixed format: date, time, then requested columns in order
@@ -378,7 +382,7 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 
 			point := influxdb2.NewPoint(
 				"ecobee_runtime",
-				map[string]string{thermostatNameTag: thermostatId},
+				map[string]string{thermostatNameTag: thermostatName},
 				influxFields,
 				reportTime,
 			)
