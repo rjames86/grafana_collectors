@@ -98,17 +98,15 @@ services:
     container_name: ecobee-collector
     build: ./ecobee_influx_connector
     depends_on:
-      - influxdb
+      - influxdb2
       - grafana
+    env_file: .env
     environment:
-      ECOBEE_API_KEY: ${ECOBEE_API_KEY}
       ECOBEE_WORK_DIR: /var/lib/ecobee_collector
-      ECOBEE_INFLUX_SERVER: http://influxdb2:8086
+      ECOBEE_INFLUX_SERVER: ${WEATHERFLOW_COLLECTOR_INFLUXDB_URL}
       ECOBEE_INFLUX_BUCKET: ecobee
       ECOBEE_INFLUX_ORG: ${WEATHERFLOW_COLLECTOR_INFLUXDB_ORG}
-      ECOBEE_INFLUX_TOKEN: ${WEATHERFLOW_COLLECTOR_TOKEN}
-      ECOBEE_INFLUX_USER: ${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}
-      ECOBEE_INFLUX_PASSWORD: ${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}
+      ECOBEE_INFLUX_TOKEN: ${WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN}
       ECOBEE_ALWAYS_WRITE_WEATHER_AS_CURRENT: "false"
       ECOBEE_WRITE_HEAT_PUMP_1: "true"
       ECOBEE_WRITE_HEAT_PUMP_2: "true"

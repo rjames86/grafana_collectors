@@ -21,23 +21,24 @@ import (
 )
 
 type Config struct {
-	APIKey             string   `env:"API_KEY,required"`
-	WorkDir            string   `env:"WORK_DIR"`
-	ThermostatID       []string `env:"THERMOSTAT_ID"` // No longer required - will auto-discover
-	InfluxServer       string   `env:"INFLUX_SERVER,required"`
-	InfluxOrg          string   `env:"INFLUX_ORG"`
-	InfluxUser         string   `env:"INFLUX_USER"`
-	InfluxPass         string   `env:"INFLUX_PASSWORD"`
-	InfluxToken        string   `env:"INFLUX_TOKEN"`
-	InfluxBucket       string   `env:"INFLUX_BUCKET,required"`
-	WriteHeatPump1     bool     `env:"WRITE_HEAT_PUMP_1"`
-	WriteHeatPump2     bool     `env:"WRITE_HEAT_PUMP_2"`
-	WriteAuxHeat1      bool     `env:"WRITE_AUX_HEAT_1"`
-	WriteAuxHeat2      bool     `env:"WRITE_AUX_HEAT_2"`
-	WriteCool1         bool     `env:"WRITE_COOL_1"`
-	WriteCool2         bool     `env:"WRITE_COOL_2"`
-	WriteHumidifier    bool     `env:"WRITE_HUMIDIFIER"`
-	AlwaysWriteWeather bool     `env:"ALWAYS_WRITE_WEATHER_AS_CURRENT"`
+	// Ecobee-specific settings (use ECOBEE_ prefix)
+	APIKey             string   `env:"ECOBEE_API_KEY,required"`
+	WorkDir            string   `env:"ECOBEE_WORK_DIR"`
+	ThermostatID       []string `env:"ECOBEE_THERMOSTAT_ID"` // No longer required - will auto-discover
+	WriteHeatPump1     bool     `env:"ECOBEE_WRITE_HEAT_PUMP_1"`
+	WriteHeatPump2     bool     `env:"ECOBEE_WRITE_HEAT_PUMP_2"`
+	WriteAuxHeat1      bool     `env:"ECOBEE_WRITE_AUX_HEAT_1"`
+	WriteAuxHeat2      bool     `env:"ECOBEE_WRITE_AUX_HEAT_2"`
+	WriteCool1         bool     `env:"ECOBEE_WRITE_COOL_1"`
+	WriteCool2         bool     `env:"ECOBEE_WRITE_COOL_2"`
+	WriteHumidifier    bool     `env:"ECOBEE_WRITE_HUMIDIFIER"`
+	AlwaysWriteWeather bool     `env:"ECOBEE_ALWAYS_WRITE_WEATHER_AS_CURRENT"`
+
+	// InfluxDB settings (use standard WEATHERFLOW_COLLECTOR_ prefix)
+	InfluxServer       string   `env:"WEATHERFLOW_COLLECTOR_INFLUXDB_URL,required"`
+	InfluxOrg          string   `env:"WEATHERFLOW_COLLECTOR_INFLUXDB_ORG"`
+	InfluxToken        string   `env:"WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN"`
+	InfluxBucket       string   `env:"ECOBEE_INFLUX_BUCKET,required"`
 }
 
 const (
@@ -387,8 +388,8 @@ func main() {
 	flag.Parse()
 
 	var config Config
-	l := envconfig.PrefixLookuper("ECOBEE_", envconfig.OsLookuper())
-	if err := envconfig.ProcessWith(context.Background(), &config, l); err != nil {
+	// Process config without prefix to get both ECOBEE_ and WEATHERFLOW_COLLECTOR_ variables
+	if err := envconfig.Process(context.Background(), &config); err != nil {
 		panic(err)
 	}
 
@@ -433,15 +434,13 @@ func main() {
 		log.Printf("Found %d thermostat(s)", len(thermostatIDs))
 	}
 	if config.InfluxBucket == "" || config.InfluxServer == "" {
-		log.Fatalf("influx_server and influx_bucket must be set in the config file.")
+		log.Fatalf("WEATHERFLOW_COLLECTOR_INFLUXDB_URL and ECOBEE_INFLUX_BUCKET must be set.")
 	}
 
 	const influxTimeout = 3 * time.Second
-	authString := ""
-	if config.InfluxUser != "" || config.InfluxPass != "" {
-		authString = fmt.Sprintf("%s:%s", config.InfluxUser, config.InfluxPass)
-	} else if config.InfluxToken != "" {
-		authString = fmt.Sprintf("%s", config.InfluxToken)
+	authString := config.InfluxToken
+	if authString == "" {
+		log.Fatalf("WEATHERFLOW_COLLECTOR_INFLUXDB_TOKEN must be set.")
 	}
 	influxClient := influxdb2.NewClient(config.InfluxServer, authString)
 	ctx, cancel := context.WithTimeout(context.Background(), influxTimeout)
