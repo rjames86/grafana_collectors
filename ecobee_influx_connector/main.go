@@ -190,8 +190,8 @@ func runBackfill(client *ecobee.Client, influxWriteApi api.WriteAPIBlocking, con
 		thermostatComfortSettings[thermostatId] = comfortSettings
 	}
 
-	// Use a simplified column set that's more likely to work for historical data
-	columns := "zoneAveTemp,zoneCoolTemp,zoneHeatTemp,fan,hvacMode,zoneCalendarEvent"
+	// Request full equipment runtime data for backfill
+	columns := "zoneAveTemp,zoneCoolTemp,zoneHeatTemp,fan,hvacMode,zoneCalendarEvent,auxHeat1,auxHeat2,compHeat1,compHeat2,compCool1,compCool2,humidifier"
 
 	successfulChunks := 0
 	consecutiveFailures := 0
@@ -240,7 +240,7 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 	const influxTimeout = 3 * time.Second
 
 	// Runtime reports have fixed format: date, time, then requested columns in order
-	// We requested: "zoneAveTemp,zoneCoolTemp,zoneHeatTemp,fan,hvacMode,zoneCalendarEvent"
+	// We requested: "zoneAveTemp,zoneCoolTemp,zoneHeatTemp,fan,hvacMode,zoneCalendarEvent,auxHeat1,auxHeat2,compHeat1,compHeat2,compCool1,compCool2,humidifier"
 	columnMap := map[string]int{
 		"date":               0, // Always first
 		"time":               1, // Always second
@@ -250,13 +250,20 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 		"fan":                5,
 		"hvacMode":           6,
 		"zoneCalendarEvent":  7,
+		"auxHeat1":           8,
+		"auxHeat2":           9,
+		"compHeat1":          10, // Heat pump stage 1
+		"compHeat2":          11, // Heat pump stage 2
+		"compCool1":          12, // Cooling stage 1
+		"compCool2":          13, // Cooling stage 2
+		"humidifier":         14,
 	}
 
 	// Process each row (5-minute interval)
 	for _, row := range report.RowList {
 		fields := strings.Split(row, ",")
-		if len(fields) < 8 {
-			continue // Skip malformed rows
+		if len(fields) < 15 {
+			continue // Skip malformed rows (need at least 15 fields: date,time + 13 data columns)
 		}
 
 		// Parse timestamp from date and time fields
@@ -310,14 +317,14 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 		hvacMode := getString("hvacMode")
 
 		fanRunSec, _ := getInt("fan")
-		// Equipment runtime data not available in simplified mode
-		auxHeat1RunSec := 0
-		auxHeat2RunSec := 0
-		heatPump1RunSec := 0
-		heatPump2RunSec := 0
-		cool1RunSec := 0
-		cool2RunSec := 0
-		humidifierRunSec := 0
+		// Equipment runtime data from Runtime Report API
+		auxHeat1RunSec, _ := getInt("auxHeat1")
+		auxHeat2RunSec, _ := getInt("auxHeat2")
+		heatPump1RunSec, _ := getInt("compHeat1") // Heat pump stage 1 = compressor heating stage 1
+		heatPump2RunSec, _ := getInt("compHeat2") // Heat pump stage 2 = compressor heating stage 2
+		cool1RunSec, _ := getInt("compCool1")
+		cool2RunSec, _ := getInt("compCool2")
+		humidifierRunSec, _ := getInt("humidifier")
 
 		// Get comfort setting name
 		comfortSettingRef := getString("zoneCalendarEvent")
