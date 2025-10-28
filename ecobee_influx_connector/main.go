@@ -137,15 +137,16 @@ func discoverThermostats(client *ecobee.Client) ([]string, error) {
 func findEarliestAvailableDate(client *ecobee.Client, thermostatId string) (string, error) {
 	columns := "zoneAveTemp,zoneCoolTemp,zoneHeatTemp"
 
-	// Test candidate dates from most recent to older
+	// Test candidate dates from older to more recent to find the earliest available
 	candidateDates := []string{
-		"2024-01-01",
-		"2023-01-01",
-		"2022-01-01",
-		"2021-10-01",
 		"2021-01-01",
+		"2021-10-01",
+		"2022-01-01",
+		"2023-01-01",
+		"2024-01-01",
 	}
 
+	var earliestDate string
 	for _, testDate := range candidateDates {
 		endTime, err := time.Parse("2006-01-02", testDate)
 		if err != nil {
@@ -155,12 +156,17 @@ func findEarliestAvailableDate(client *ecobee.Client, thermostatId string) (stri
 
 		_, err = client.GetRuntimeReport(thermostatId, testDate, testEnd, columns, false)
 		if err == nil {
-			return testDate, nil
+			earliestDate = testDate
+			break // Found the earliest available date
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	return "", fmt.Errorf("no historical data found")
+	if earliestDate == "" {
+		return "", fmt.Errorf("no historical data found")
+	}
+
+	return earliestDate, nil
 }
 
 // runBackfill processes historical data using the Runtime Report API
