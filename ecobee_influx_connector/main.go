@@ -254,9 +254,9 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 	columnMap := map[string]int{
 		"date":               0, // Always first
 		"time":               1, // Always second
-		"zoneAveTemp":        2,
-		"zoneCoolTemp":       3,
-		"zoneHeatTemp":       4,
+		"zoneAveTemp":        2, // Current temperature (1st in request)
+		"zoneCoolTemp":       3, // Cool setpoint (2nd in request)
+		"zoneHeatTemp":       4, // Heat setpoint (3rd in request)
 		"fan":                5,
 		"hvacMode":           6,
 		"zoneCalendarEvent":  7,
@@ -293,7 +293,7 @@ func processRuntimeReport(report *ecobee.RuntimeReport, influxWriteApi api.Write
 				if err != nil {
 					return 0, err
 				}
-				return val / 10.0, nil // Ecobee stores temps in tenths
+				return val, nil // Runtime Report API returns values already in degrees F
 			}
 			return 0, fmt.Errorf("column %s not found", colName)
 		}
