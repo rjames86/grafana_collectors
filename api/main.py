@@ -18,12 +18,6 @@ from env import (
     PUSHOVER_SPRINKLER_TOKEN,
 )
 
-# ---------------------------
-# Influx clients
-# ---------------------------
-influxV1_client = InfluxDBV1Client(
-    host=INFLUXDB_V1_URL, username=INFLUXDB_V1_USER, password=INFLUXDB_V1_PASS
-)
 
 influxV2_client = InfluxDBV2Client(
     url=INFLUXDB_V2_URL, token=INFLUXDB_V2_TOKEN, org=INFLUXDB_V2_ORG
@@ -79,30 +73,17 @@ def write_influxdb_post(database):
     data = request.get_json()
     data_points = data.get("data_points", [])
     verbose = data.get("verbose", False)
-    use_v1_legacy = data.get("use_v1_legacy", False)  # New parameter for legacy v1 support
 
     if verbose:
         logger.info(f"Data points received: {data_points}")
 
-    # Default to InfluxDB v2 (new behavior)
-    if not use_v1_legacy:
-        try:
-            logger.info(f"Writing to InfluxDB v2 bucket '{database}'")
-            write_influxdb_v2(database, data_points)
-            return jsonify(dict(success=True, message="Successfully written to InfluxDB v2", version="v2"))
-        except Exception as e:
-            logger.error(f"Failed to write to InfluxDB v2: {e}")
-            return jsonify(dict(success=False, message=f"InfluxDB v2 write failed: {str(e)}", version="v2")), 500
-
-    # Legacy InfluxDB v1 support (only when explicitly requested)
-    else:
-        try:
-            logger.info(f"Writing to InfluxDB v1 database '{database}' (legacy mode)")
-            write_influxdb_v1(database, data_points)
-            return jsonify(dict(success=True, message="Successfully written to InfluxDB v1 (legacy)", version="v1"))
-        except Exception as e:
-            logger.error(f"Failed to write to InfluxDB v1: {e}")
-            return jsonify(dict(success=False, message=f"InfluxDB v1 write failed: {str(e)}", version="v1")), 500
+    try:
+        logger.info(f"Writing to InfluxDB v2 bucket '{database}'")
+        write_influxdb_v2(database, data_points)
+        return jsonify(dict(success=True, message="Successfully written to InfluxDB v2", version="v2"))
+    except Exception as e:
+        logger.error(f"Failed to write to InfluxDB v2: {e}")
+        return jsonify(dict(success=False, message=f"InfluxDB v2 write failed: {str(e)}", version="v2")), 500
 
 @app.route("/influx/latest_data", methods=["GET"])
 def get_current_data():
@@ -111,15 +92,15 @@ def get_current_data():
     start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
     start_of_day_ms = int(start_of_day.timestamp() * 1000)
 
-    influxV1_client.switch_database("solar_edge")
+    influxV2_client.switch_database("solar_edge")
     latest_power_query = f'SELECT last("value") FROM "sensor__power_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
     total_energy_query = f'SELECT sum("value") FROM "sensor__energy_production" WHERE time >= {start_of_day_ms}ms and time <= now()'
     total_energy_consumption_query = f'SELECT sum("value") FROM "sensor__energy_consumption" WHERE time >= {start_of_day_ms}ms and time <= now()'
 
-    latest_power_results = list(influxV1_client.query(latest_power_query).get_points())[0]
-    total_energy_results = list(influxV1_client.query(total_energy_query).get_points())[0]
+    latest_power_results = list(influxV2_client.query(latest_power_query).get_points())[0]
+    total_energy_results = list(influxV2_client.query(total_energy_query).get_points())[0]
     total_energy_consumption_results = list(
-        influxV1_client.query(total_energy_consumption_query).get_points()
+        influxV2_client.query(total_energy_consumption_query).get_points()
     )[0]
 
     last_update = datetime.fromisoformat(latest_power_results["time"])
@@ -157,13 +138,6 @@ def send_pushover_message():
     if resp.status_code != 200:
         return jsonify(dict(success=False, message=f"Failed to send message: {resp.text}", status_code=resp.status_code)), 500
     return jsonify(dict(success=True, message="Message sent successfully"))
-
-# ---------------------------
-# InfluxDB v1 write helper
-# ---------------------------
-def write_influxdb_v1(database, data_points):
-    influxV1_client.create_database(database)
-    influxV1_client.write_points(data_points, database=database, batch_size=10000)
 
 # ---------------------------
 # Flask app entry point

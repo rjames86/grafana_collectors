@@ -1,22 +1,4 @@
 services:
-  # Core Infrastructure Services
-  influxdb:
-    container_name: influxdb
-    image: influxdb:1.8
-    environment:
-      TZ: America/Denver
-      INFLUXDB_ADMIN_PASSWORD: ${INFLUXDB_ADMIN_PASSWORD}
-      INFLUXDB_ADMIN_USER: admin
-      INFLUXDB_DATA_ENGINE: tsm1
-      INFLUXDB_DB: weatherflow
-      INFLUXDB_HTTP_FLUX_ENABLED: true
-      INFLUXDB_USER: weatherflow
-      INFLUXDB_USER_PASSWORD: ${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}
-    ports:
-      - 8086:8086
-    restart: always
-    volumes:
-      - ./data/influxdb:/var/lib/influxdb:rw
   influxdb2:
     container_name: influxdb2
     image: influxdb:latest
@@ -62,7 +44,6 @@ services:
     container_name: api
     build: ./api
     depends_on:
-      - influxdb
       - influxdb2
     ports:
       - 8080:5000
@@ -77,11 +58,6 @@ services:
     environment:
       FLASK_DEBUG: 1
       FLASK_APP: ./main.py
-      # WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: ${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}
-      # WEATHERFLOW_COLLECTOR_INFLUXDB_URL: influxdb
-      # WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: ${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}
-      # PUSHOVER_USER: ${PUSHOVER_USER}
-      # PUSHOVER_SPRINKLER_TOKEN: ${PUSHOVER_SPRINKLER_TOKEN}
     healthcheck:
       test:
         - CMD
@@ -122,30 +98,13 @@ services:
     container_name: solaredge-collector
     build: ./solaredge
     depends_on:
-      - influxdb
       - api
     environment:
-      WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: ${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}
-      WEATHERFLOW_COLLECTOR_INFLUXDB_URL: influxdb
-      WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: ${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}
       SOLAREDGE_SITE_ID: ${SOLAREDGE_SITE_ID}
       SOLAREDGE_TOKEN: ${SOLAREDGE_TOKEN}
     volumes:
       - ./data/solaredge_collector:/var/lib/solaredge_collector
     restart: always
-  # august-collector:
-  #   container_name: august-collector
-  #   build: ./august
-  #   depends_on:
-  #     - api
-  #     - grafana
-  #   environment:
-  #     AUGUST_USERNAME: "${AUGUST_USERNAME}"
-  #     AUGUST_PASSWORD: "${AUGUST_PASSWORD}"
-  #   volumes:
-  #     - ./data/august_collector:/var/lib/august_collector
-  #   restart: always
-
   purpleair-collector:
     container_name: purpleair-collector
     build: ./purpleair
@@ -173,21 +132,6 @@ services:
     working_dir: /app/weatherflow-collector
     volumes:
       - ./data/weatherflow-collector-v2:/var/lib/weatherflow-collector
-  # weatherflow-collector-v1:
-  #   container_name: weatherflow-collector-v1
-  #   image: lux4rd0/weatherflow-collector:3.5.3
-  #   environment:
-  #     TZ: America/Denver
-  #     WEATHERFLOW_COLLECTOR_BACKEND_TYPE: "influxdb"
-  #     WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD: "${WEATHERFLOW_COLLECTOR_INFLUXDB_PASSWORD}"
-  #     WEATHERFLOW_COLLECTOR_INFLUXDB_URL: http://influxdb:8086/write?db=weatherflow
-  #     WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME: "${WEATHERFLOW_COLLECTOR_INFLUXDB_USERNAME}"
-  #     WEATHERFLOW_COLLECTOR_TOKEN: "${WEATHERFLOW_COLLECTOR_TOKEN}"
-  #     WEATHERFLOW_COLLECTOR_STATION_ID: 83924
-  #   restart: always
-  #   depends_on:
-  #     - influxdb
-
   mqtt-client:
     container_name: mqtt-client
     build: ./mqtt_client
