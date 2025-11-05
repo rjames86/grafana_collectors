@@ -15,3 +15,5 @@ data/*
 # But don't ignore the data directory itself
 !data/.gitkeep
 !data/mosquitto/mosquitto.conf
+
+ecobee_influx_connector/ecobee_influx_connector
