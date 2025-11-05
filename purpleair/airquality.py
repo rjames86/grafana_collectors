@@ -5,7 +5,7 @@ import json
 import os
 import sys
 import datetime
-from influxdb import InfluxDBClient
+import requests
 
 API_KEY_PATH = "/var/lib/purpleair/apiKey"
 URL_TEMPLATE = "https://api.purpleair.com/v1/sensors/{sensor_id}?api_key={api_key}&fields=name%2Cpm1.0_atm%2Cpm2.5_atm%2Cpm10.0_atm"
@@ -16,23 +16,44 @@ def average_round_pm(sensors, value_name):
     count = sum(1 for sensor in sensors if sensor and sensor.get(value_name) is not None)
     return round(total / count, 2) if count > 0 else 0
 
-def create_influx_pm_measurements(results):
+def create_api_data_points(results):
     time = datetime.datetime.fromtimestamp(results['data_time_stamp'], tz=datetime.timezone.utc)
     sensor = results['sensor']
-    base_measurement = {
-        "measurement": "airquality",
-        "tags": {
-            "location": "Outside",
-            "host": sensor['name'],
-            "sensor": "PurpleAir",
-        },
-        "time": time
-    }
-    pm10 = {**base_measurement, "fields": {"pm10": float(sensor['pm1.0_atm'])}}
-    pm25 = {**base_measurement, "fields": {"pm25": float(sensor['pm2.5_atm'])}}
-    pm100 = {**base_measurement, "fields": {"pm100": float(sensor['pm10.0_atm'])}}
 
-    return [pm10, pm25, pm100]
+    tags = {
+        "location": "Outside",
+        "host": sensor['name'],
+        "sensor": "PurpleAir",
+    }
+
+    # Create separate data points for each PM measurement
+    data_points = []
+
+    # PM 1.0
+    data_points.append({
+        "measurement": "airquality",
+        "tags": tags,
+        "fields": {"pm10": float(sensor['pm1.0_atm'])},
+        "time": time.isoformat()
+    })
+
+    # PM 2.5
+    data_points.append({
+        "measurement": "airquality",
+        "tags": tags,
+        "fields": {"pm25": float(sensor['pm2.5_atm'])},
+        "time": time.isoformat()
+    })
+
+    # PM 10.0
+    data_points.append({
+        "measurement": "airquality",
+        "tags": tags,
+        "fields": {"pm100": float(sensor['pm10.0_atm'])},
+        "time": time.isoformat()
+    })
+
+    return data_points
 
 def get_env_variable(name):
     value = os.environ.get(name)
@@ -64,26 +85,31 @@ def main():
         print(f"No valid data returned: {data}")
         sys.exit(0)
 
-    influxdb_url = get_env_variable("INFLUXDB_URL")
-    influxdb_username = get_env_variable("INFLUXDB_USERNAME")
-    influxdb_password = get_env_variable("INFLUXDB_PASSWORD")
-    influxdb_name = get_env_variable("INFLUX_DB")
+    # Get database name for API endpoint
+    influx_db = get_env_variable("INFLUX_DB")
 
-    client = InfluxDBClient(
-        host=influxdb_url,
-        port=8086,
-        username=influxdb_username,
-        password=influxdb_password,
-        database=influxdb_name,
-    )
-    client.create_database(influxdb_name)
-
-    influx_data = create_influx_pm_measurements(data)
+    # Create data points for API
+    data_points = create_api_data_points(data)
 
     print(f"Fetched sensor values from PurpleAir: \n{data}")
-    print(f"Influx data is \n{influx_data}")
+    print(f"API data points: \n{data_points}")
 
-    client.write_points(influx_data)
+    # Send to your API
+    api_payload = {
+        "data_points": data_points,
+        "verbose": False
+    }
+
+    try:
+        response = requests.post(
+            f'http://api:5000/influx/{influx_db}/write',
+            json=api_payload
+        )
+        response.raise_for_status()
+        print(f"Successfully wrote data to API: {response.json()}")
+    except requests.exceptions.RequestException as e:
+        print(f"Error writing to API: {e}")
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
