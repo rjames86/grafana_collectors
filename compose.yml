@@ -146,6 +146,3 @@ services:
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       MQTT_BROKER: mosquitto
-networks:
-  dockge_default:
-    external: true
