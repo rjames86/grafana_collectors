@@ -195,8 +195,18 @@ def on_unifi_protect_message(client, userdata, msg):
         except (json.JSONDecodeError, UnicodeDecodeError):
             payload_value = msg.payload.decode()
 
+        # Convert data types for InfluxDB compatibility
         if isinstance(payload_value, bool):
             payload_value = int(payload_value)
+        elif isinstance(payload_value, (int, float)):
+            payload_value = float(payload_value)
+        elif isinstance(payload_value, str):
+            # Try to convert string numbers to float
+            try:
+                payload_value = float(payload_value)
+            except ValueError:
+                # Keep as string if not numeric
+                pass
 
         # Create data point for API
         data_point = {
@@ -252,7 +262,6 @@ def get_all_topics_and_message_fns():
         ("opensprinkler/weather", on_weather_message),
         ("opensprinkler/alert/flow", on_flow_alert_message),
 
-        # UniFi Protect topics - subscribe to all topics under unifi/protect
-        ("unifi/protect/+/+", on_unifi_protect_message),  # Single-level topics (e.g., unifi/protect/MAC/motion)
-        ("unifi/protect/+/+/+", on_unifi_protect_message),  # Multi-level topics (e.g., unifi/protect/MAC/light/set)
+        # UniFi Protect topics - subscribe to all topics under unifi/protect (any depth)
+        ("unifi/protect/+/#", on_unifi_protect_message),  # All topics under each device MAC
     ]
