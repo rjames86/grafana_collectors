@@ -1,6 +1,8 @@
 import json
 import logging
 import requests
+import datetime
+from urllib.parse import urlparse
 
 station_names = {
     "0": "Back Yard",
@@ -164,10 +166,64 @@ def on_flow_alert_message(client, userdata, msg):
         _send_fallback_message(msg, "OpenSprinkler Flow Alert Error")
 
 
+def on_unifi_protect_message(client, userdata, msg):
+    """Handle all UniFi Protect MQTT messages and send to API"""
+    try:
+        # Parse topic to extract device MAC and topic type
+        # Expected format: unifi/protect/[MAC-ADDRESS]/[topic]
+        topic_parts = msg.topic.split('/')
+        if len(topic_parts) < 4:
+            logging.warning(f"Unexpected UniFi Protect topic format: {msg.topic}")
+            return
+
+        base_path = '/'.join(topic_parts[:2])  # "unifi/protect"
+        mac_address = topic_parts[2]
+        topic_type = '/'.join(topic_parts[3:])  # Everything after MAC address
+
+        # Try to parse payload as JSON, fallback to string
+        try:
+            payload = json.loads(msg.payload.decode())
+            payload_value = payload
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            payload_value = msg.payload.decode()
+
+        # Create data point for API
+        data_point = {
+            "measurement": "unifi_protect",
+            "tags": {
+                "device_mac": mac_address,
+                "topic_type": topic_type,
+                "source": "mqtt"
+            },
+            "fields": {
+                "value": payload_value,
+                "topic": msg.topic
+            },
+            "time": datetime.datetime.utcnow().isoformat()
+        }
+
+        # Send to API
+        api_payload = {
+            "data_points": [data_point],
+            "verbose": False
+        }
+
+        response = requests.post(
+            'http://api:5000/influx/unifi_protect/write',
+            json=api_payload
+        )
+        response.raise_for_status()
+
+        logging.info(f"UniFi Protect: {mac_address}/{topic_type} -> {payload_value}")
+
+    except Exception as e:
+        logging.error(f"Error processing UniFi Protect MQTT message from {msg.topic}: {e}")
+
+
 def _send_fallback_message(msg, title):
     """Send a fallback message when JSON parsing fails"""
     original_message = f"Received `{msg.payload.decode()}` from `{msg.topic}` topic"
-    
+
     requests.post('http://api:5000/pushover/sprinkler/message', json=dict(
         message=original_message,
         title=f"{title} (Raw)"
@@ -179,9 +235,14 @@ def get_all_topics_and_message_fns():
     Returns a list of tuples containing MQTT topics and their corresponding message handling functions.
     """
     return [
+        # OpenSprinkler topics
         ("opensprinkler/station/+", on_station_message),
         ("opensprinkler/system", on_system_message),
         ("opensprinkler/raindelay", on_raindelay_message),
         ("opensprinkler/weather", on_weather_message),
         ("opensprinkler/alert/flow", on_flow_alert_message),
+
+        # UniFi Protect topics - subscribe to all topics under unifi/protect
+        ("unifi/protect/+/+", on_unifi_protect_message),  # Single-level topics (e.g., unifi/protect/MAC/motion)
+        ("unifi/protect/+/+/+", on_unifi_protect_message),  # Multi-level topics (e.g., unifi/protect/MAC/light/set)
     ]
