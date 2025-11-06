@@ -188,6 +188,36 @@ def on_unifi_protect_message(client, userdata, msg):
             logging.info(f"Ignoring UniFi Protect topic type: {topic_type}")
             return
 
+        # Parse topic structure for better organization
+        topic_levels = topic_parts[3:]  # e.g., ['motion', 'smart', 'person']
+
+        # Determine measurement and tags based on topic structure
+        if len(topic_levels) >= 1:
+            measurement = topic_levels[0]  # e.g., 'motion', 'temperature', etc.
+
+            # Build tags from remaining topic levels
+            tags = {
+                "device_mac": mac_address,
+                "source": "mqtt"
+            }
+
+            # Handle nested topics like motion/smart/person
+            if len(topic_levels) == 3 and topic_levels[1] == "smart":
+                tags["smart_type"] = topic_levels[2]  # person, face, vehicle, etc.
+            elif len(topic_levels) == 2:
+                tags["sub_type"] = topic_levels[1]  # for topics like light/brightness
+            elif len(topic_levels) > 3:
+                # For deeper nesting, join remaining parts
+                tags["sub_type"] = "/".join(topic_levels[1:])
+        else:
+            # Fallback for unexpected structure
+            measurement = "unifi_protect"
+            tags = {
+                "device_mac": mac_address,
+                "source": "mqtt",
+                "topic_type": topic_type
+            }
+
         # Try to parse payload as JSON, fallback to string
         try:
             payload = json.loads(msg.payload.decode())
@@ -210,11 +240,8 @@ def on_unifi_protect_message(client, userdata, msg):
 
         # Create data point for API
         data_point = {
-            "measurement": topic_type,
-            "tags": {
-                "device_mac": mac_address,
-                "source": "mqtt"
-            },
+            "measurement": measurement,
+            "tags": tags,
             "fields": {
                 "value": payload_value,
                 "topic": msg.topic
