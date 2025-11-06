@@ -189,10 +189,9 @@ def on_unifi_protect_message(client, userdata, msg):
 
         # Create data point for API
         data_point = {
-            "measurement": "unifi_protect",
+            "measurement": topic_type,
             "tags": {
                 "device_mac": mac_address,
-                "topic_type": topic_type,
                 "source": "mqtt"
             },
             "fields": {
