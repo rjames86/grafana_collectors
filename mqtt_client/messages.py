@@ -167,6 +167,10 @@ def on_flow_alert_message(client, userdata, msg):
 
 
 def on_unifi_protect_message(client, userdata, msg):
+    IGNORED_TOPIC_TYPES = [
+        'snapshot',
+    ]
+
     """Handle all UniFi Protect MQTT messages and send to API"""
     try:
         # Parse topic to extract device MAC and topic type
@@ -179,6 +183,10 @@ def on_unifi_protect_message(client, userdata, msg):
         base_path = '/'.join(topic_parts[:2])  # "unifi/protect"
         mac_address = topic_parts[2]
         topic_type = '/'.join(topic_parts[3:])  # Everything after MAC address
+
+        if topic_type in IGNORED_TOPIC_TYPES:
+            logging.info(f"Ignoring UniFi Protect topic type: {topic_type}")
+            return
 
         # Try to parse payload as JSON, fallback to string
         try:
