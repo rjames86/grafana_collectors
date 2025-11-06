@@ -37,8 +37,7 @@ services:
       - 1883:1883
       - 9001:9001
     volumes:
-      - ./data/mosquitto:/etc/mosquitto
-      - ./data/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./data/mosquitto:/mosquitto/config
   # Data Collection Services
   api:
     container_name: api
@@ -146,3 +145,4 @@ services:
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       MQTT_BROKER: mosquitto
+networks: {}
