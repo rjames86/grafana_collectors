@@ -195,6 +195,9 @@ def on_unifi_protect_message(client, userdata, msg):
         except (json.JSONDecodeError, UnicodeDecodeError):
             payload_value = msg.payload.decode()
 
+        if isinstance(payload_value, bool):
+            payload_value = int(payload_value)
+
         # Create data point for API
         data_point = {
             "measurement": topic_type,
