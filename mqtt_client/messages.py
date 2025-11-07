@@ -276,7 +276,7 @@ def on_unifi_protect_message(client, userdata, msg):
         )
         response.raise_for_status()
 
-        logging.info(f"UniFi Protect: {mac_address}/{topic_type} -> {payload_value}")
+        logging.info(f"UniFi Protect: {device_name}/{topic_type} -> {payload_value}")
 
     except Exception as e:
         logging.error(f"Error processing UniFi Protect MQTT message from {msg.topic}: {e}")
