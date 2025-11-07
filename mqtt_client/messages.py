@@ -171,6 +171,16 @@ def on_unifi_protect_message(client, userdata, msg):
         'snapshot',
     ]
 
+    MAC_ADDRESS_MAPPING = {
+        "847848260182": "Back door",
+        "8C3066FE8882": "Deck",
+        "84784824F7D7": "Driveway",
+        "AC83F359D0CC": "FOSCAM R2 V4",
+        "84784824F7C2": "Front door",
+        "847848289D28": "Garage",
+        "8C3066FE87D3": "North Driveway"
+    }
+
     """Handle all UniFi Protect MQTT messages and send to API"""
     try:
         # Parse topic to extract device MAC and topic type
@@ -188,6 +198,9 @@ def on_unifi_protect_message(client, userdata, msg):
             logging.info(f"Ignoring UniFi Protect topic type: {topic_type}")
             return
 
+        # Get device friendly name from mapping
+        device_name = MAC_ADDRESS_MAPPING.get(mac_address, f"Unknown-{mac_address}")
+
         # Parse topic structure for better organization
         topic_levels = topic_parts[3:]  # e.g., ['motion', 'smart', 'person']
 
@@ -195,9 +208,10 @@ def on_unifi_protect_message(client, userdata, msg):
         if len(topic_levels) >= 1:
             measurement = topic_levels[0]  # e.g., 'motion', 'temperature', etc.
 
-            # Build tags from remaining topic levels
+            # Build base tags that will appear on all data points
             tags = {
                 "device_mac": mac_address,
+                "device_name": device_name,
                 "source": "mqtt"
             }
 
@@ -214,6 +228,7 @@ def on_unifi_protect_message(client, userdata, msg):
             measurement = "unifi_protect"
             tags = {
                 "device_mac": mac_address,
+                "device_name": device_name,
                 "source": "mqtt",
                 "topic_type": topic_type
             }
