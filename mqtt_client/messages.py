@@ -196,7 +196,7 @@ def on_unifi_protect_message(client, userdata, msg):
         topic_type = '/'.join(topic_parts[3:])  # Everything after MAC address
 
         if topic_type in IGNORED_TOPIC_TYPES:
-            logging.info(f"Ignoring UniFi Protect topic type: {topic_type}")
+            logging.debug(f"Ignoring UniFi Protect topic type: {topic_type}")
             return
 
         # Get device friendly name from mapping
