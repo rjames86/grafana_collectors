@@ -169,6 +169,7 @@ def on_flow_alert_message(client, userdata, msg):
 def on_unifi_protect_message(client, userdata, msg):
     IGNORED_TOPIC_TYPES = [
         'snapshot',
+        'telemetry',
     ]
 
     MAC_ADDRESS_MAPPING = {
@@ -263,8 +264,6 @@ def on_unifi_protect_message(client, userdata, msg):
             },
             "time": datetime.datetime.utcnow().isoformat()
         }
-
-        logging.info(json.dumps(data_point))
 
         # Send to API
         api_payload = {
