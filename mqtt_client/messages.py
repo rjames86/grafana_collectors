@@ -255,7 +255,6 @@ def on_unifi_protect_message(client, userdata, msg):
 
         if isinstance(payload_value, dict) or isinstance(payload_value, list):
             # For complex types, convert to JSON string
-            import json
             print(json.dumps(payload_value))
 
         # Create data point for API
