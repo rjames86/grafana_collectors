@@ -253,10 +253,6 @@ def on_unifi_protect_message(client, userdata, msg):
                 # Keep as string if not numeric
                 pass
 
-        if 'value' in payload_value and isinstance(payload_value['value'], (dict, list)):
-            # For complex types, convert to JSON string
-            logging.info(json.dumps(payload_value))
-
         # Create data point for API
         data_point = {
             "measurement": measurement,
@@ -267,6 +263,8 @@ def on_unifi_protect_message(client, userdata, msg):
             },
             "time": datetime.datetime.utcnow().isoformat()
         }
+
+        logging.info(json.dumps(data_point))
 
         # Send to API
         api_payload = {
