@@ -253,7 +253,7 @@ def on_unifi_protect_message(client, userdata, msg):
                 # Keep as string if not numeric
                 pass
 
-        if isinstance(payload_value, dict) or isinstance(payload_value, list):
+        if 'value' in payload_value and isinstance(payload_value['value'], (dict, list)):
             # For complex types, convert to JSON string
             logging.info(json.dumps(payload_value))
 
