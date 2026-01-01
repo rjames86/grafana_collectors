@@ -1,0 +1,3 @@
+[submodule "weatherflow-collector"]
+	path = weatherflow-collector
+	url = https://github.com/rjames86/weatherflow-collector

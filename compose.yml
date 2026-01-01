@@ -118,7 +118,7 @@ services:
     restart: always
   weatherflow-collector-v2:
     container_name: weatherflow-collector-v2
-    image: lux4rd0/weatherflow-collector:5.1.57
+    build: ./weatherflow-collector
     restart: always
     depends_on:
       influxdb2:
