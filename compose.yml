@@ -145,4 +145,28 @@ services:
       MQTT_USERNAME: ${MQTT_USERNAME}
       MQTT_PASSWORD: ${MQTT_PASSWORD}
       MQTT_BROKER: mosquitto
+  rivian-collector:
+    build:
+      context: .
+      dockerfile: ./rivflux/docker/rivian/Dockerfile
+    container_name: rivian-collector
+    restart: unless-stopped
+    volumes:
+      - ./rivflux/data/auth:/app
+    command: [
+      "-auth-file=/app/auth.json",
+      "-influx-url=http://influxdb2:8086",
+      "-influx-token=${INFLUX_TOKEN}",
+      "-influx-org=ryanm",
+      "-influx-bucket=rivian",
+      "-poll-interval=300"
+    ]
+    depends_on:
+      - influxdb2
+    healthcheck:
+      test: ["CMD", "ps", "aux", "|", "grep", "logger"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 networks: {}
